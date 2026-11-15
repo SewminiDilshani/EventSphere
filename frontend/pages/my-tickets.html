@@ -1,0 +1,115 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Tickets - EventSphere</title>
+    <link rel="stylesheet" href="../style.css?v=8">
+
+    <style>
+        .ticket-page { width: 90%; max-width: 900px; margin: 40px auto; }
+        .ticket-card {
+            background: white;
+            padding: 25px;
+            margin: 20px 0;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,.08);
+            border-left: 5px solid #2563eb;
+            overflow-wrap: anywhere;
+        }
+        .ticket-card h3 { color: #172554; margin-bottom: 12px; }
+        .ticket-card img { display: block; width: 180px; max-width: 100%; margin: 18px auto; }
+        .ticket-code { font-weight: bold; overflow-wrap: anywhere; }
+        .ticket-status { font-weight: bold; }
+    </style>
+</head>
+
+<body>
+<header>
+    <div class="logo">EventSphere</div>
+    <nav>
+        <a href="../index.html">Home</a>
+        <a href="./events.html">Events</a>
+        <a href="./my-bookings.html">My Bookings</a>
+    </nav>
+</header>
+
+<main class="ticket-page">
+    <h1>My Digital Tickets</h1>
+    <div id="ticketList">Loading tickets...</div>
+</main>
+
+<footer>
+    <p>&copy; 2026 EventSphere. All Rights Reserved.</p>
+</footer>
+
+<script>
+const API = "http://127.0.0.1:8000";
+
+async function loadTickets() {
+    const container = document.getElementById("ticketList");
+
+    try {
+        const response = await fetch(`${API}/tickets/my-tickets`, {
+            credentials: "include"
+        });
+
+        const tickets = await response.json();
+
+        if (!response.ok) {
+            container.textContent = tickets.detail || "Please login to view your tickets.";
+            return;
+        }
+
+        if (!Array.isArray(tickets) || tickets.length === 0) {
+            container.textContent = "No tickets available.";
+            return;
+        }
+
+        container.innerHTML = "";
+
+        tickets.forEach(ticket => {
+            const card = document.createElement("div");
+            card.className = "ticket-card";
+
+            const heading = document.createElement("h3");
+            heading.textContent = ticket.event || "Event Ticket";
+
+            const info = document.createElement("p");
+            info.textContent = `Ticket ID: ${ticket.id}`;
+
+            const status = document.createElement("p");
+            status.className = "ticket-status";
+            status.textContent =
+                `Status: ${ticket.status}${ticket.checked_in ? " (Checked in)" : ""}`;
+
+            card.append(heading, info, status);
+
+            if (ticket.qr_code && ticket.status === "valid" && !ticket.checked_in) {
+                const image = document.createElement("img");
+                image.src = ticket.qr_code.startsWith("data:")
+                    ? ticket.qr_code
+                    : `data:image/png;base64,${ticket.qr_code}`;
+                image.alt = "Digital ticket QR code";
+                card.appendChild(image);
+            }
+
+            const code = document.createElement("p");
+            code.className = "ticket-code";
+            code.textContent = `Ticket Code: ${ticket.ticket_code || "Not available"}`;
+            card.appendChild(code);
+
+            container.appendChild(card);
+        });
+
+    } catch (error) {
+        container.textContent = "Cannot connect to backend.";
+        console.error(error);
+    }
+}
+
+loadTickets();
+</script>
+</body>
+</html>

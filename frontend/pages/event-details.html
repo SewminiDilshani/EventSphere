@@ -1,0 +1,259 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Details - EventSphere</title>
+    <link rel="stylesheet" href="../style.css?v=8">
+
+    <style>
+        .details-section {
+            width: 90%;
+            max-width: 850px;
+            margin: 45px auto;
+        }
+
+        .details-card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 3px 15px rgba(0,0,0,.08);
+        }
+
+        .details-card h1 { color: #172554; margin-bottom: 20px; }
+        .details-card p { margin: 14px 0; line-height: 1.6; }
+
+        .booking-box {
+            margin-top: 28px;
+            padding: 24px;
+            background: #f5f7fb;
+            border-radius: 10px;
+        }
+
+        .booking-box select, .booking-box input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 12px;
+            margin: 10px 0 18px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+
+        .book-button {
+            padding: 13px 25px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .book-button:disabled { background: #999; cursor: not-allowed; }
+        #message { margin-top: 15px; font-weight: bold; overflow-wrap: anywhere; }
+
+        @media(max-width:600px) {
+            .details-section { width: 94%; margin: 25px auto; }
+            .details-card { padding: 20px; }
+        }
+    </style>
+</head>
+
+<body>
+<header>
+    <div class="logo">EventSphere</div>
+    <nav>
+        <a href="../index.html">Home</a>
+        <a href="./events.html">Events</a>
+        <a href="./venue-hire.html">Venue Hire</a>
+        <a href="./login.html">Login</a>
+        <a href="./register.html">Register</a>
+    </nav>
+</header>
+
+<main class="details-section">
+    <div class="details-card">
+
+        <h1 id="eventTitle">Loading event...</h1>
+
+        <p><strong>Category:</strong> <span id="category">-</span></p>
+        <p><strong>Description:</strong> <span id="description">-</span></p>
+        <p><strong>Venue ID:</strong> <span id="venueId">-</span></p>
+        <p><strong>Start:</strong> <span id="startTime">-</span></p>
+        <p><strong>End:</strong> <span id="endTime">-</span></p>
+
+        <div class="booking-box">
+            <h2>Book Your Tickets</h2>
+
+            <label for="ticketCategory">Ticket Category</label>
+            <select id="ticketCategory">
+                <option value="">Loading ticket categories...</option>
+            </select>
+
+            <label for="quantity">Quantity</label>
+            <input type="number" id="quantity" min="1" max="10" value="1">
+
+            <button class="book-button" id="bookButton" onclick="bookTickets()">
+                Book Tickets
+            </button>
+
+            <p id="message" role="status" aria-live="polite"></p>
+        </div>
+    </div>
+</main>
+
+<footer>
+    <p>&copy; 2026 EventSphere. All Rights Reserved.</p>
+</footer>
+
+<script>
+const API = "http://127.0.0.1:8000";
+const eventId = new URLSearchParams(window.location.search).get("id");
+
+function csrfHeaders() {
+    return {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": sessionStorage.getItem("csrf_token") || ""
+    };
+}
+
+async function loadEvent() {
+    const message = document.getElementById("message");
+
+    if (!eventId || !/^\d+$/.test(eventId)) {
+        document.getElementById("eventTitle").textContent = "Invalid event";
+        message.textContent = "Event ID is missing or invalid.";
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API}/events/${eventId}`);
+        const event = await response.json();
+
+        if (!response.ok) {
+            throw new Error(event.detail || "Event not found.");
+        }
+
+        document.getElementById("eventTitle").textContent = event.title;
+        document.getElementById("category").textContent = event.category || "-";
+        document.getElementById("description").textContent = event.description || "-";
+        document.getElementById("venueId").textContent = event.venue_id;
+
+        document.getElementById("startTime").textContent =
+            new Date(event.start_time).toLocaleString();
+
+        document.getElementById("endTime").textContent =
+            new Date(event.end_time).toLocaleString();
+
+        await loadCategories();
+
+    } catch (error) {
+        document.getElementById("eventTitle").textContent = "Unable to load event";
+        message.textContent = error.message;
+        console.error(error);
+    }
+}
+
+async function loadCategories() {
+    const select = document.getElementById("ticketCategory");
+
+    try {
+        const response = await fetch(
+            `${API}/ticket-categories/event/${eventId}`
+        );
+
+        const categories = await response.json();
+
+        if (!response.ok) {
+            throw new Error(categories.detail || "Ticket categories could not be loaded.");
+        }
+
+        select.innerHTML = "";
+
+        if (!Array.isArray(categories) || categories.length === 0) {
+            select.innerHTML = "<option value=''>No ticket categories available</option>";
+            return;
+        }
+
+        categories.forEach(category => {
+            const option = document.createElement("option");
+            option.value = category.id;
+            option.textContent =
+                `${category.name} - Rs. ${category.price} (Available: ${category.quantity})`;
+            select.appendChild(option);
+        });
+
+    } catch (error) {
+        select.innerHTML = "<option value=''>Unable to load tickets</option>";
+        document.getElementById("message").textContent = error.message;
+    }
+}
+
+async function bookTickets() {
+    const message = document.getElementById("message");
+    const button = document.getElementById("bookButton");
+
+    const categoryId = document.getElementById("ticketCategory").value;
+    const quantity = Number(document.getElementById("quantity").value);
+
+    if (!sessionStorage.getItem("csrf_token")) {
+        message.textContent = "Please login before booking tickets.";
+        message.style.color = "red";
+        return;
+    }
+
+    if (!categoryId) {
+        message.textContent = "Please select a ticket category.";
+        message.style.color = "red";
+        return;
+    }
+
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) {
+        message.textContent = "Enter a quantity between 1 and 10.";
+        message.style.color = "red";
+        return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Processing...";
+    message.textContent = "Processing your booking...";
+    message.style.color = "#333";
+
+    try {
+        const response = await fetch(`${API}/bookings/`, {
+            method: "POST",
+            credentials: "include",
+            headers: csrfHeaders(),
+            body: JSON.stringify({
+                event_id: Number(eventId),
+                ticket_category_id: Number(categoryId),
+                quantity: quantity
+            })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.detail || "Booking failed.");
+        }
+
+        message.style.color = "green";
+        message.textContent =
+            `Booking successful! Payment reference: ${result.payment_reference || "Created"}`;
+
+        await loadCategories();
+
+    } catch (error) {
+        message.style.color = "red";
+        message.textContent = error.message;
+        console.error(error);
+    } finally {
+        button.disabled = false;
+        button.textContent = "Book Tickets";
+    }
+}
+
+loadEvent();
+</script>
+</body>
+</html>

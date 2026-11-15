@@ -1,0 +1,344 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - EventSphere</title>
+    <link rel="stylesheet" href="../style.css?v=8">
+
+    <style>
+        .admin-container {
+            width: 90%;
+            max-width: 1150px;
+            margin: 40px auto;
+        }
+
+        .admin-container h1 { color: #172554; margin-bottom: 20px; }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 18px;
+            margin: 25px 0 35px;
+        }
+
+        .stat-card, .admin-section {
+            background: white;
+            padding: 22px;
+            border-radius: 10px;
+            box-shadow: 0 3px 12px rgba(0,0,0,.07);
+        }
+
+        .stat-card { border-top: 4px solid #2563eb; }
+        .stat-card p { color: #64748b; font-size: 14px; }
+        .stat-card h2 { color: #172554; font-size: 25px; margin-top: 10px; }
+
+        .admin-section { margin-bottom: 25px; }
+        .admin-section h2 { color: #172554; margin-bottom: 18px; }
+
+        .hire-card, .agent-card {
+            background: #f5f7fb;
+            padding: 17px;
+            border-radius: 8px;
+            margin: 12px 0;
+            border-left: 4px solid #2563eb;
+            overflow-wrap: anywhere;
+        }
+
+        .hire-card p, .agent-card p { margin: 7px 0; }
+
+        .hire-card button { margin: 8px 8px 0 0; }
+        .reject-button, .logout-button { background: #dc2626; }
+        .reject-button:hover, .logout-button:hover { background: #b91c1c; }
+
+        #summaryMessage { color: #64748b; }
+        .status { font-weight: bold; }
+        .error { color: #b91c1c; }
+        .success { color: #166534; }
+
+        @media(max-width:600px) {
+            .admin-container { width: 94%; }
+            .admin-section, .stat-card { padding: 17px; }
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <div class="logo">EventSphere Admin</div>
+    <nav>
+        <a href="../index.html">Home</a>
+        <a href="./events.html">Events</a>
+        <a href="./venue-hire.html">Venue Hire</a>
+        <button class="logout-button" onclick="logout()">Logout</button>
+    </nav>
+</header>
+
+<main class="admin-container">
+
+    <h1>Admin Dashboard</h1>
+    <p id="summaryMessage">Loading dashboard...</p>
+
+    <section class="dashboard-grid" id="summary">
+        <div class="stat-card"><p>Loading...</p><h2>...</h2></div>
+    </section>
+
+    <section class="admin-section">
+        <h2>Venue Hire Requests</h2>
+        <div id="hireRequests">Loading requests...</div>
+    </section>
+
+    <section class="admin-section">
+        <h2>Agent Message Log</h2>
+        <div id="agentMessages">Loading agent messages...</div>
+    </section>
+
+</main>
+
+<footer>
+    <p>&copy; 2026 EventSphere. Admin Dashboard.</p>
+</footer>
+
+<script>
+const API = "http://127.0.0.1:8000";
+
+function csrfHeaders() {
+    return {
+        "X-CSRF-Token": sessionStorage.getItem("csrf_token") || ""
+    };
+}
+
+async function loadDashboard() {
+    const container = document.getElementById("summary");
+    const message = document.getElementById("summaryMessage");
+
+    try {
+        const response = await fetch(`${API}/dashboard/summary`, {
+            credentials: "include"
+        });
+
+        const data = await response.json();
+
+        if (response.status === 401 || response.status === 403) {
+            window.location.href = "./login.html";
+            return;
+        }
+
+        if (!response.ok) {
+            throw new Error(data.detail || "Dashboard loading failed.");
+        }
+
+        message.textContent = "Dashboard overview";
+
+        const cards = [
+            ["Total Events", data.total_events],
+            ["Published Events", data.published_events],
+            ["Confirmed Bookings", data.total_bookings],
+            ["Total Revenue", "Rs. " + Number(data.total_revenue || 0).toLocaleString()],
+            ["Total Tickets", data.total_tickets],
+            ["Checked-in Tickets", data.checked_in_tickets],
+            ["Not Checked-in", data.not_checked_in],
+            ["Agent Messages", data.agent_messages]
+        ];
+
+        container.innerHTML = "";
+
+        cards.forEach(([title, value]) => {
+            const card = document.createElement("div");
+            card.className = "stat-card";
+
+            const label = document.createElement("p");
+            label.textContent = title;
+
+            const number = document.createElement("h2");
+            number.textContent = value ?? 0;
+
+            card.append(label, number);
+            container.appendChild(card);
+        });
+
+    } catch (error) {
+        message.textContent = error.message;
+        console.error(error);
+    }
+}
+
+async function loadHireRequests() {
+    const container = document.getElementById("hireRequests");
+
+    try {
+        const response = await fetch(`${API}/venue-hires/admin/all`, {
+            credentials: "include"
+        });
+
+        const requests = await response.json();
+
+        if (response.status === 401 || response.status === 403) {
+            container.textContent = "Admin login required.";
+            return;
+        }
+
+        if (!response.ok) {
+            throw new Error(requests.detail || "Unable to load requests.");
+        }
+
+        container.innerHTML = "";
+
+        if (!Array.isArray(requests) || requests.length === 0) {
+            container.textContent = "No venue hire requests found.";
+            return;
+        }
+
+        requests.forEach(item => {
+            const card = document.createElement("div");
+            card.className = "hire-card";
+
+            const heading = document.createElement("h3");
+            heading.textContent = `Request #${item.id}`;
+
+            const details = document.createElement("p");
+            details.textContent =
+                `Venue ID: ${item.venue_id} | Guests: ${item.guest_count}`;
+
+            const purpose = document.createElement("p");
+            purpose.textContent = `Purpose: ${item.purpose || "Not specified"}`;
+
+            const dates = document.createElement("p");
+            dates.textContent =
+                `From: ${new Date(item.start_time).toLocaleString()} | To: ${new Date(item.end_time).toLocaleString()}`;
+
+            const price = document.createElement("p");
+            price.textContent =
+                `Estimated price: Rs. ${Number(item.total_price || 0).toLocaleString()}`;
+
+            const status = document.createElement("p");
+            status.className = "status";
+            status.textContent = `Status: ${item.status}`;
+
+            card.append(heading, details, purpose, dates, price, status);
+
+            if (item.status === "pending") {
+                const confirmButton = document.createElement("button");
+                confirmButton.textContent = "Confirm";
+                confirmButton.onclick = () => decideHire(item.id, "confirmed");
+
+                const rejectButton = document.createElement("button");
+                rejectButton.textContent = "Reject";
+                rejectButton.className = "reject-button";
+                rejectButton.onclick = () => decideHire(item.id, "rejected");
+
+                card.append(confirmButton, rejectButton);
+            }
+
+            container.appendChild(card);
+        });
+
+    } catch (error) {
+        container.textContent = error.message;
+        console.error(error);
+    }
+}
+
+async function decideHire(id, decision) {
+    if (!confirm(`Are you sure you want to ${decision} this request?`)) return;
+
+    try {
+        const response = await fetch(
+            `${API}/venue-hires/admin/${id}/decision?decision=${encodeURIComponent(decision)}`,
+            {
+                method: "PUT",
+                credentials: "include",
+                headers: csrfHeaders()
+            }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            alert(result.detail || "Unable to update request.");
+            return;
+        }
+
+        alert(result.message || "Request updated.");
+        await loadHireRequests();
+
+    } catch (error) {
+        alert("Cannot connect to backend.");
+        console.error(error);
+    }
+}
+
+async function loadAgentMessages() {
+    const container = document.getElementById("agentMessages");
+
+    try {
+        const response = await fetch(`${API}/agents/messages`, {
+            credentials: "include"
+        });
+
+        const messages = await response.json();
+
+        if (!response.ok) {
+            container.textContent = messages.detail || "Unable to load messages.";
+            return;
+        }
+
+        container.innerHTML = "";
+
+        if (!Array.isArray(messages) || messages.length === 0) {
+            container.textContent = "No agent messages found.";
+            return;
+        }
+
+        messages.forEach(item => {
+            const card = document.createElement("div");
+            card.className = "agent-card";
+
+            const heading = document.createElement("h3");
+            heading.textContent =
+                `${item.sender} → ${item.receiver}`;
+
+            const performative = document.createElement("p");
+            performative.textContent = `Performative: ${item.performative}`;
+
+            const content = document.createElement("p");
+            content.textContent = `Content: ${item.content}`;
+
+            const conversation = document.createElement("p");
+            conversation.textContent =
+                `Conversation ID: ${item.conversation_id || "N/A"}`;
+
+            card.append(heading, performative, content, conversation);
+            container.appendChild(card);
+        });
+
+    } catch (error) {
+        container.textContent = "Unable to load agent messages.";
+        console.error(error);
+    }
+}
+
+async function logout() {
+    try {
+        await fetch(`${API}/auth/logout`, {
+            method: "POST",
+            credentials: "include",
+            headers: csrfHeaders()
+        });
+    } catch (error) {
+        console.error(error);
+    }
+
+    sessionStorage.removeItem("csrf_token");
+    window.location.href = "./login.html";
+}
+
+loadDashboard();
+loadHireRequests();
+loadAgentMessages();
+</script>
+
+</body>
+</html>

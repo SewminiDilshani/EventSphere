@@ -1,0 +1,173 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff Dashboard - EventSphere</title>
+    <link rel="stylesheet" href="../style.css?v=8">
+
+    <style>
+        .staff-container { width: 90%; max-width: 700px; margin: 45px auto; }
+
+        .staff-card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0,0,0,.08);
+        }
+
+        .staff-card h1 { color: #172554; text-align: center; margin-bottom: 12px; }
+        .staff-description { text-align: center; color: #64748b; margin-bottom: 25px; }
+        .staff-card form { max-width: none; padding: 0; margin: 0; box-shadow: none; }
+        .staff-card button { width: 100%; margin-top: 12px; }
+
+        #result {
+            margin-top: 22px;
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            display: none;
+            overflow-wrap: anywhere;
+        }
+
+        #result.success { display: block; background: #dcfce7; color: #166534; }
+        #result.error { display: block; background: #fee2e2; color: #991b1b; }
+
+        .staff-info {
+            margin-top: 25px;
+            padding: 15px;
+            background: #eff6ff;
+            border-radius: 8px;
+            color: #1e40af;
+            font-size: 14px;
+        }
+
+        .logout-button { background: #dc2626; }
+
+        @media(max-width:600px) {
+            .staff-container { width: 94%; margin: 25px auto; }
+            .staff-card { padding: 20px; }
+        }
+    </style>
+</head>
+
+<body>
+<header>
+    <div class="logo">EventSphere Staff</div>
+    <nav>
+        <a href="../index.html">Home</a>
+        <button class="logout-button" onclick="logout()">Logout</button>
+    </nav>
+</header>
+
+<main class="staff-container">
+    <section class="staff-card">
+        <h1>Ticket Check-in</h1>
+
+        <p class="staff-description">
+            Verify customer tickets before allowing event entry.
+        </p>
+
+        <form id="scanForm">
+            <label for="ticketCode">Ticket Code</label>
+            <input type="text" id="ticketCode" required
+                   placeholder="Enter or scan ticket code" autocomplete="off">
+
+            <label for="eventId">Event ID (optional)</label>
+            <input type="number" id="eventId" min="1"
+                   placeholder="Enter event ID if required">
+
+            <button type="submit" id="scanButton">Verify Ticket</button>
+        </form>
+
+        <div id="result" role="status" aria-live="polite"></div>
+
+        <div class="staff-info">
+            Enter the ticket code to verify its validity. A successful verification
+            records the ticket as checked in. A ticket cannot be used twice.
+        </div>
+    </section>
+</main>
+
+<footer>
+    <p>&copy; 2026 EventSphere. Staff Dashboard.</p>
+</footer>
+
+<script>
+const API = "http://127.0.0.1:8000";
+
+document.getElementById("scanForm").addEventListener("submit", async function(event) {
+    event.preventDefault();
+
+    const code = document.getElementById("ticketCode").value.trim();
+    const eventIdValue = document.getElementById("eventId").value;
+    const resultBox = document.getElementById("result");
+    const button = document.getElementById("scanButton");
+
+    if (!code) {
+        resultBox.className = "error";
+        resultBox.textContent = "Please enter a ticket code.";
+        return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Verifying...";
+    resultBox.className = "";
+    resultBox.style.display = "none";
+
+    try {
+        let url = `${API}/tickets/scan/${encodeURIComponent(code)}`;
+
+        if (eventIdValue) {
+            url += `?event_id=${encodeURIComponent(eventIdValue)}`;
+        }
+
+        const response = await fetch(url, {
+            method: "POST",
+            credentials: "include",
+            headers: {
+                "X-CSRF-Token": sessionStorage.getItem("csrf_token") || ""
+            }
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.detail || result.message || "Ticket verification failed.");
+        }
+
+        resultBox.className = "success";
+        resultBox.textContent = result.message || "Ticket check-in successful!";
+        document.getElementById("scanForm").reset();
+
+    } catch (error) {
+        resultBox.className = "error";
+        resultBox.textContent = error.message;
+        console.error(error);
+    } finally {
+        button.disabled = false;
+        button.textContent = "Verify Ticket";
+    }
+});
+
+async function logout() {
+    try {
+        await fetch(`${API}/auth/logout`, {
+            method: "POST",
+            credentials: "include",
+            headers: {
+                "X-CSRF-Token": sessionStorage.getItem("csrf_token") || ""
+            }
+        });
+    } catch (error) {
+        console.error(error);
+    }
+
+    sessionStorage.removeItem("csrf_token");
+    window.location.href = "./login.html";
+}
+</script>
+</body>
+</html>

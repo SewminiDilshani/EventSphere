@@ -1,0 +1,277 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Venue Hire - EventSphere</title>
+    <link rel="stylesheet" href="../style.css?v=8">
+
+    <style>
+        .venue-page { width: 90%; max-width: 850px; margin: 40px auto; }
+
+        .venue-card {
+            background: white;
+            padding: 28px;
+            border-radius: 12px;
+            box-shadow: 0 4px 18px rgba(0,0,0,.08);
+            margin-bottom: 25px;
+        }
+
+        .venue-card h1, .venue-card h2 { color: #172554; margin-bottom: 18px; }
+        .venue-card form { max-width: none; margin: 0; padding: 0; box-shadow: none; }
+        .venue-card button { width: 100%; margin-top: 12px; }
+        #message { margin-top: 15px; text-align: center; font-weight: bold; }
+
+        .request-item {
+            background: #f5f7fb;
+            border-left: 4px solid #2563eb;
+            padding: 16px;
+            margin: 12px 0;
+            border-radius: 6px;
+            overflow-wrap: anywhere;
+        }
+
+        .request-item p { margin: 7px 0; }
+
+        @media(max-width:600px) {
+            .venue-page { width: 94%; margin: 25px auto; }
+            .venue-card { padding: 20px; }
+        }
+    </style>
+</head>
+
+<body>
+<header>
+    <div class="logo">EventSphere</div>
+    <nav>
+        <a href="../index.html">Home</a>
+        <a href="./events.html">Events</a>
+        <a href="./my-bookings.html">My Bookings</a>
+        <a href="./login.html">Login</a>
+    </nav>
+</header>
+
+<main class="venue-page">
+
+    <section class="venue-card">
+        <h1>Request a Venue</h1>
+        <p>Choose a venue and submit your booking request.</p>
+
+        <form id="hireForm">
+
+            <label for="venue_id">Select Venue</label>
+            <select id="venue_id" required>
+                <option value="">Loading venues...</option>
+            </select>
+
+            <label for="start_time">Start Date and Time</label>
+            <input type="datetime-local" id="start_time" required>
+
+            <label for="end_time">End Date and Time</label>
+            <input type="datetime-local" id="end_time" required>
+
+            <label for="purpose">Purpose of Hire</label>
+            <input type="text" id="purpose" maxlength="250"
+                   placeholder="Example: Birthday party" required>
+
+            <label for="guest_count">Number of Guests</label>
+            <input type="number" id="guest_count" min="1"
+                   placeholder="Enter guest count" required>
+
+            <button type="submit" id="submitButton">Submit Venue Request</button>
+            <p id="message" role="status" aria-live="polite"></p>
+        </form>
+    </section>
+
+    <section class="venue-card">
+        <h2>My Venue Requests</h2>
+        <div id="myRequests">Loading requests...</div>
+    </section>
+
+</main>
+
+<footer>
+    <p>&copy; 2026 EventSphere. All Rights Reserved.</p>
+</footer>
+
+<script>
+const API = "http://127.0.0.1:8000";
+
+async function loadVenues() {
+    const select = document.getElementById("venue_id");
+
+    try {
+        const response = await fetch(`${API}/venues/`, {
+            credentials: "include"
+        });
+
+        const venues = await response.json();
+
+        if (!response.ok) {
+            throw new Error(venues.detail || "Venue loading failed.");
+        }
+
+        select.innerHTML = "<option value=''>Select a venue</option>";
+
+        const availableVenues = venues.filter(venue => venue.is_open_for_hire);
+
+        if (availableVenues.length === 0) {
+            select.innerHTML = "<option value=''>No venues available for hire</option>";
+            return;
+        }
+
+        availableVenues.forEach(venue => {
+            const option = document.createElement("option");
+            option.value = venue.id;
+            option.textContent =
+                `${venue.name} - ${venue.location} (Capacity: ${venue.capacity})`;
+            select.appendChild(option);
+        });
+
+    } catch (error) {
+        select.innerHTML = "<option value=''>Unable to load venues</option>";
+        console.error(error);
+    }
+}
+
+document.getElementById("hireForm").addEventListener("submit", async function(event) {
+    event.preventDefault();
+
+    const message = document.getElementById("message");
+    const button = document.getElementById("submitButton");
+
+    if (!sessionStorage.getItem("csrf_token")) {
+        message.style.color = "red";
+        message.textContent = "Please login before requesting a venue.";
+        return;
+    }
+
+    const start = document.getElementById("start_time").value;
+    const end = document.getElementById("end_time").value;
+    const guestCount = Number(document.getElementById("guest_count").value);
+
+    if (new Date(end) <= new Date(start)) {
+        message.style.color = "red";
+        message.textContent = "End time must be after start time.";
+        return;
+    }
+
+    if (!Number.isInteger(guestCount) || guestCount < 1) {
+        message.style.color = "red";
+        message.textContent = "Please enter a valid guest count.";
+        return;
+    }
+
+    const data = {
+        venue_id: Number(document.getElementById("venue_id").value),
+        start_time: new Date(start).toISOString(),
+        end_time: new Date(end).toISOString(),
+        purpose: document.getElementById("purpose").value.trim(),
+        guest_count: guestCount
+    };
+
+    button.disabled = true;
+    message.style.color = "#333";
+    message.textContent = "Submitting request...";
+
+    try {
+        const response = await fetch(`${API}/venue-hires/`, {
+            method: "POST",
+            credentials: "include",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-Token": sessionStorage.getItem("csrf_token") || ""
+            },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                typeof result.detail === "string"
+                    ? result.detail
+                    : "Unable to submit request."
+            );
+        }
+
+        if (result.status === "unavailable") {
+            message.style.color = "red";
+            message.textContent = result.message || "Venue is unavailable. Please check alternatives.";
+            return;
+        }
+
+        message.style.color = "green";
+        message.textContent = result.message || "Venue request submitted successfully.";
+
+        document.getElementById("hireForm").reset();
+        await loadRequests();
+
+    } catch (error) {
+        message.style.color = "red";
+        message.textContent = error.message;
+        console.error(error);
+    } finally {
+        button.disabled = false;
+    }
+});
+
+async function loadRequests() {
+    const container = document.getElementById("myRequests");
+
+    try {
+        const response = await fetch(`${API}/venue-hires/my-requests`, {
+            credentials: "include"
+        });
+
+        const requests = await response.json();
+
+        if (!response.ok) {
+            container.textContent =
+                requests.detail || "Please login to view your requests.";
+            return;
+        }
+
+        container.innerHTML = "";
+
+        if (!Array.isArray(requests) || requests.length === 0) {
+            container.textContent = "No venue requests found.";
+            return;
+        }
+
+        requests.forEach(item => {
+            const card = document.createElement("div");
+            card.className = "request-item";
+
+            const heading = document.createElement("h3");
+            heading.textContent = `Request #${item.id}`;
+
+            const venue = document.createElement("p");
+            venue.textContent = `Venue ID: ${item.venue_id}`;
+
+            const purpose = document.createElement("p");
+            purpose.textContent = `Purpose: ${item.purpose || "Not specified"}`;
+
+            const dates = document.createElement("p");
+            dates.textContent =
+                `${new Date(item.start_time).toLocaleString()} - ${new Date(item.end_time).toLocaleString()}`;
+
+            const status = document.createElement("p");
+            status.textContent = `Status: ${item.status}`;
+
+            card.append(heading, venue, purpose, dates, status);
+            container.appendChild(card);
+        });
+
+    } catch (error) {
+        container.textContent = "Unable to load requests.";
+        console.error(error);
+    }
+}
+
+loadVenues();
+loadRequests();
+</script>
+</body>
+</html>

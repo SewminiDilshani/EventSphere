@@ -1,0 +1,153 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - EventSphere</title>
+    <link rel="stylesheet" href="../style.css?v=8">
+
+    <style>
+        .auth-container {
+            width: 90%;
+            max-width: 460px;
+            margin: 60px auto;
+            padding: 35px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0,0,0,.08);
+        }
+
+        .auth-container h1 {
+            text-align: center;
+            color: #172554;
+            margin-bottom: 25px;
+        }
+
+        .auth-container form {
+            max-width: none;
+            margin: 0;
+            padding: 0;
+            box-shadow: none;
+        }
+
+        .auth-container input {
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+        }
+
+        .auth-container button { width: 100%; margin-top: 15px; }
+        .auth-container > p { text-align: center; margin-top: 20px; }
+        #message { text-align: center; margin-top: 15px; font-weight: bold; }
+
+        @media(max-width:500px) {
+            .auth-container { padding: 22px; margin: 35px auto; }
+        }
+    </style>
+</head>
+
+<body>
+<header>
+    <div class="logo">EventSphere</div>
+    <nav>
+        <a href="../index.html">Home</a>
+        <a href="./events.html">Events</a>
+        <a href="./register.html">Register</a>
+    </nav>
+</header>
+
+<main class="auth-container">
+    <h1>Login to EventSphere</h1>
+
+    <form id="loginForm">
+        <label for="email">Email</label>
+        <input type="email" id="email" required placeholder="Enter your email">
+
+        <label for="password">Password</label>
+        <input type="password" id="password" required placeholder="Enter your password">
+
+        <button type="submit" id="loginButton">Login</button>
+        <p id="message" role="status" aria-live="polite"></p>
+    </form>
+
+    <p>Don't have an account? <a href="./register.html">Register here</a></p>
+</main>
+
+<footer>
+    <p>&copy; 2026 EventSphere. All Rights Reserved.</p>
+</footer>
+
+<script>
+const API = "http://127.0.0.1:8000";
+
+document.getElementById("loginForm").addEventListener("submit", async function(event) {
+    event.preventDefault();
+
+    const message = document.getElementById("message");
+    const button = document.getElementById("loginButton");
+
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    button.disabled = true;
+    message.style.color = "#333";
+    message.textContent = "Logging in...";
+
+    try {
+        const response = await fetch(`${API}/auth/login`, {
+            method: "POST",
+            credentials: "include",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ email, password })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.detail || "Invalid email or password.");
+        }
+
+        if (!result.csrf_token) {
+            throw new Error("CSRF token was not received from the server.");
+        }
+
+        sessionStorage.setItem("csrf_token", result.csrf_token);
+
+        const userResponse = await fetch(`${API}/auth/me`, {
+            method: "GET",
+            credentials: "include"
+        });
+
+        const user = await userResponse.json();
+
+        if (!userResponse.ok) {
+            throw new Error(user.detail || "Unable to retrieve user details.");
+        }
+
+        message.style.color = "green";
+        message.textContent = "Login successful!";
+
+        setTimeout(() => {
+            if (user.role === "admin") {
+                window.location.href = "./admin-dashboard.html";
+            } else if (user.role === "staff") {
+                window.location.href = "./staff-dashboard.html";
+            } else {
+                window.location.href = "./events.html";
+            }
+        }, 400);
+
+    } catch (error) {
+        message.style.color = "red";
+        message.textContent = error.message;
+        console.error("Login error:", error);
+    } finally {
+        button.disabled = false;
+    }
+});
+</script>
+</body>
+</html>
