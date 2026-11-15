@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic-settings
+python-multipart
+jinja2
+pwdlib[argon2]
+qrcode[pil]
+httpx
+pytest
+pytest-asyncio
+psycopg[binary]
+python-dotenv
