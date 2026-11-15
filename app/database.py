@@ -10,7 +10,7 @@ load_dotenv()
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "sqlite:///./eventsphere.db"
+    "postgresql://postgres:SFOKBxygtacdcTKLvwuuMvLUDbXNzYrP@postgres.railway.internal:5432/railway"
 )
 
 # Support common PostgreSQL connection URL format
