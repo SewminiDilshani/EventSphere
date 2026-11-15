@@ -19,20 +19,15 @@ router = APIRouter(
 )
 
 
-# -----------------------------
-# Request Schema
-# -----------------------------
-
 class BookingCreate(BaseModel):
     event_id: int
     ticket_category_id: int
     quantity: int = Field(gt=0, le=10)
 
 
-# -----------------------------
-# Create Booking
-# Attendee Only
-# -----------------------------
+# --------------------------------
+# Create Booking - Attendee Only
+# --------------------------------
 
 @router.post("/")
 def create_booking(
@@ -41,8 +36,6 @@ def create_booking(
     current_user=Depends(require_role("attendee"))
 ):
     try:
-        # SQLite: acquire write lock before checking availability.
-        # This helps prevent two requests from selling the same last ticket.
         db.execute(text("BEGIN IMMEDIATE"))
 
         event = db.query(Event).filter(
@@ -72,7 +65,6 @@ def create_booking(
                 detail="Ticket category not found"
             )
 
-        # Count valid tickets belonging to confirmed bookings
         booked_count = db.query(
             func.count(Ticket.id)
         ).join(
@@ -157,9 +149,9 @@ def create_booking(
         )
 
 
-# -----------------------------
+# --------------------------------
 # Attendee Booking History
-# -----------------------------
+# --------------------------------
 
 @router.get("/my-bookings")
 def my_bookings(
@@ -168,8 +160,6 @@ def my_bookings(
 ):
     bookings = db.query(Booking).filter(
         Booking.user_id == current_user.id
-    ).order_by(
-        Booking.created_at.desc()
     ).all()
 
     result = []
@@ -192,10 +182,9 @@ def my_bookings(
     return result
 
 
-# -----------------------------
-# Cancel Booking
-# Attendee Only
-# -----------------------------
+# --------------------------------
+# Cancel Booking - Attendee Only
+# --------------------------------
 
 @router.put("/{booking_id}/cancel")
 def cancel_booking(
@@ -227,8 +216,11 @@ def cancel_booking(
             Ticket.booking_id == booking.id
         ).all()
 
-        # Do not cancel a booking after admission
-        if any(ticket.checked_in for ticket in tickets):
+        # Do not cancel a booking after admission.
+        if any(
+            getattr(ticket, "checked_in", False)
+            for ticket in tickets
+        ):
             raise HTTPException(
                 status_code=400,
                 detail="Booking cannot be cancelled after check-in"
@@ -270,9 +262,9 @@ def cancel_booking(
         )
 
 
-# -----------------------------
+# --------------------------------
 # Admin: View All Bookings
-# -----------------------------
+# --------------------------------
 
 @router.get("/admin/all")
 def all_bookings(

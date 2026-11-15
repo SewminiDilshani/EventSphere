@@ -21,9 +21,9 @@ router = APIRouter(
 password_hash = PasswordHash.recommended()
 
 
-# -----------------------------
+# --------------------------------
 # Request Schemas
-# -----------------------------
+# --------------------------------
 
 class RegisterData(BaseModel):
     name: str = Field(min_length=2, max_length=100)
@@ -36,12 +36,11 @@ class LoginData(BaseModel):
     password: str
 
 
-# -----------------------------
+# --------------------------------
 # Email Validation
-# -----------------------------
+# --------------------------------
 
 def normalize_email(email: str):
-
     email = email.strip().lower()
 
     if not re.fullmatch(
@@ -56,16 +55,15 @@ def normalize_email(email: str):
     return email
 
 
-# -----------------------------
+# --------------------------------
 # User Registration
-# -----------------------------
+# --------------------------------
 
 @router.post("/register")
 def register(
     data: RegisterData,
     db: Session = Depends(get_db)
 ):
-
     email = normalize_email(data.email)
 
     existing_user = db.query(User).filter(
@@ -115,9 +113,9 @@ def register(
         )
 
 
-# -----------------------------
+# --------------------------------
 # User Login
-# -----------------------------
+# --------------------------------
 
 @router.post("/login")
 def login(
@@ -125,7 +123,6 @@ def login(
     request: Request,
     db: Session = Depends(get_db)
 ):
-
     email = normalize_email(data.email)
 
     user = db.query(User).filter(
@@ -147,20 +144,16 @@ def login(
             detail="Invalid email or password"
         )
 
-    if not user.is_active:
+    if not getattr(user, "is_active", True):
         raise HTTPException(
             status_code=403,
             detail="Account is inactive"
         )
 
-    # Clear old session before creating a new one
     request.session.clear()
-
     request.session["user_id"] = user.id
 
-    # Create CSRF token for frontend requests
     csrf_token = secrets.token_urlsafe(32)
-
     request.session["csrf_token"] = csrf_token
 
     return {
@@ -173,15 +166,12 @@ def login(
     }
 
 
-# -----------------------------
+# --------------------------------
 # Get CSRF Token
-# -----------------------------
+# --------------------------------
 
 @router.get("/csrf-token")
-def get_csrf_token(
-    request: Request
-):
-
+def get_csrf_token(request: Request):
     user_id = request.session.get("user_id")
 
     if not user_id:
@@ -201,15 +191,12 @@ def get_csrf_token(
     }
 
 
-# -----------------------------
+# --------------------------------
 # User Logout
-# -----------------------------
+# --------------------------------
 
 @router.post("/logout")
-def logout(
-    request: Request
-):
-
+def logout(request: Request):
     request.session.clear()
 
     return {
@@ -217,16 +204,15 @@ def logout(
     }
 
 
-# -----------------------------
+# --------------------------------
 # Get Logged-in User
-# -----------------------------
+# --------------------------------
 
 @router.get("/me")
 def get_my_account(
     request: Request,
     db: Session = Depends(get_db)
 ):
-
     user_id = request.session.get("user_id")
 
     if not user_id:
@@ -247,7 +233,7 @@ def get_my_account(
             detail="User not found"
         )
 
-    if not user.is_active:
+    if not getattr(user, "is_active", True):
         request.session.clear()
 
         raise HTTPException(

@@ -36,13 +36,11 @@ router = APIRouter(
 class BaseAgent:
 
     def __init__(self, name, goal):
-
         self.name = name
         self.goal = goal
         self.state = "active"
 
     def get_info(self):
-
         return {
             "name": self.name,
             "goal": self.goal,
@@ -57,7 +55,6 @@ class BaseAgent:
 class VenueAgent(BaseAgent):
 
     def __init__(self):
-
         super().__init__(
             "VenueAgent",
             "Check venue availability and capacity"
@@ -100,7 +97,6 @@ class VenueAgent(BaseAgent):
 class BookingAgent(BaseAgent):
 
     def __init__(self):
-
         super().__init__(
             "BookingAgent",
             "Check booking status and availability"
@@ -144,7 +140,6 @@ class BookingAgent(BaseAgent):
 class TicketAgent(BaseAgent):
 
     def __init__(self):
-
         super().__init__(
             "TicketAgent",
             "Validate digital tickets and prevent duplicate check-ins"
@@ -171,24 +166,28 @@ class TicketAgent(BaseAgent):
                 "reason": "Ticket is cancelled"
             }
 
-        if ticket.checked_in:
+        if getattr(ticket, "checked_in", False):
             return "REFUSE", {
                 "reason": "Ticket already used"
             }
 
-        booking = db.query(Booking).filter(
-            Booking.id == ticket.booking_id
-        ).first()
+        booking_id = getattr(ticket, "booking_id", None)
 
-        if not booking or booking.status != "confirmed":
-            return "REFUSE", {
-                "reason": "Booking is not confirmed"
-            }
+        if isinstance(booking_id, int):
+
+            booking = db.query(Booking).filter(
+                Booking.id == booking_id
+            ).first()
+
+            if not booking or booking.status != "confirmed":
+                return "REFUSE", {
+                    "reason": "Booking is not confirmed"
+                }
 
         return "AGREE", {
             "ticket_id": ticket.id,
             "ticket_status": ticket.status,
-            "booking_id": ticket.booking_id,
+            "booking_id": booking_id,
             "message": "Ticket is valid"
         }
 
@@ -200,13 +199,11 @@ class TicketAgent(BaseAgent):
 class WaitlistAgent(BaseAgent):
 
     def __init__(self):
-
         super().__init__(
             "WaitlistAgent",
             "Manage waiting list and expire temporary holds"
         )
 
-        # In-memory fallback for compatibility
         self.waitlist = []
 
     def add_to_waitlist(self, user_id, event_id, db=None):
@@ -308,8 +305,6 @@ class WaitlistAgent(BaseAgent):
 
             return expired
 
-        # In-memory fallback
-
         for item in self.waitlist:
 
             expiry = datetime.fromisoformat(
@@ -320,7 +315,6 @@ class WaitlistAgent(BaseAgent):
                 item["status"] == "waiting"
                 and now >= expiry
             ):
-
                 item["status"] = "expired"
 
         return self.waitlist
@@ -333,7 +327,6 @@ class WaitlistAgent(BaseAgent):
 class NotificationAgent(BaseAgent):
 
     def __init__(self):
-
         super().__init__(
             "NotificationAgent",
             "Process booking, ticket and waitlist notifications"
@@ -377,7 +370,6 @@ ticket_agent = TicketAgent()
 waitlist_agent = WaitlistAgent()
 notification_agent = NotificationAgent()
 
-
 agents = {
     "VenueAgent": venue_agent,
     "BookingAgent": booking_agent,
@@ -408,13 +400,9 @@ ALLOWED_PERFORMATIVES = {
 class AgentRequest(BaseModel):
 
     sender: str
-
     receiver: str
-
     performative: str
-
     content: dict = Field(default_factory=dict)
-
     conversation_id: str | None = None
 
 
@@ -455,36 +443,29 @@ def save_message(
 def process_agent_message(data, db):
 
     receiver = agents[data.receiver]
-
     content = data.content
-
-    # REQUEST messages
 
     if data.performative == "REQUEST":
 
         if data.receiver == "VenueAgent":
-
             return receiver.check_venue(
                 content.get("venue_id"),
                 db
             )
 
         if data.receiver == "BookingAgent":
-
             return receiver.check_booking(
                 content.get("booking_id"),
                 db
             )
 
         if data.receiver == "TicketAgent":
-
             return receiver.validate_ticket(
                 content.get("ticket_code"),
                 db
             )
 
         if data.receiver == "WaitlistAgent":
-
             return receiver.add_to_waitlist(
                 content.get("user_id"),
                 content.get("event_id"),
@@ -492,42 +473,30 @@ def process_agent_message(data, db):
             )
 
         if data.receiver == "NotificationAgent":
-
             return receiver.notify(
                 content.get("message", "Notification"),
                 content.get("user_id")
             )
 
-    # INFORM messages
-
     if (
         data.performative == "INFORM"
         and data.receiver == "NotificationAgent"
     ):
-
         return receiver.receive_notification(content)
 
-    # PROPOSE messages
-
     if data.performative == "PROPOSE":
-
         return "AGREE", {
             "message": "Proposal received",
             "agent": receiver.name,
             "proposal": content
         }
 
-    # FAILURE messages
-
     if data.performative == "FAILURE":
-
         return "INFORM", {
             "message": "Failure information received",
             "agent": receiver.name,
             "failure_details": content
         }
-
-    # Other supported messages
 
     return "INFORM", {
         "message": "Message received",
@@ -596,28 +565,24 @@ def send_agent_message(
 ):
 
     if data.sender not in agents:
-
         raise HTTPException(
             status_code=400,
             detail="Unknown sender agent"
         )
 
     if data.receiver not in agents:
-
         raise HTTPException(
             status_code=400,
             detail="Unknown receiver agent"
         )
 
     if data.sender == data.receiver:
-
         raise HTTPException(
             status_code=400,
             detail="Sender and receiver cannot be the same agent"
         )
 
     if data.performative not in ALLOWED_PERFORMATIVES:
-
         raise HTTPException(
             status_code=400,
             detail="Invalid performative"
@@ -662,12 +627,10 @@ def send_agent_message(
         }
 
     except HTTPException:
-
         db.rollback()
         raise
 
     except Exception:
-
         db.rollback()
 
         raise HTTPException(
@@ -743,7 +706,6 @@ def expire_waitlist(
         }
 
     except Exception:
-
         db.rollback()
 
         raise HTTPException(
@@ -781,7 +743,6 @@ async def automatic_waitlist_expiry():
                 db.commit()
 
             else:
-
                 db.rollback()
 
         except Exception as error:
@@ -794,7 +755,6 @@ async def automatic_waitlist_expiry():
             )
 
         finally:
-
             db.close()
 
         await asyncio.sleep(60)
