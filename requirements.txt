@@ -12,3 +12,4 @@ pytest-asyncio
 psycopg[binary]
 python-dotenv
 itsdangerous
+psycopg2-binary
