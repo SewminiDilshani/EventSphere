@@ -1,11 +1,13 @@
 
 import os
 import secrets
+import mimetypes
 
 from dotenv import load_dotenv
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from starlette.middleware.sessions import SessionMiddleware
@@ -54,11 +56,13 @@ if not SECRET_KEY:
 
     SECRET_KEY = "development-only-secret-change-before-deployment"
 
-
 COOKIE_SECURE = ENVIRONMENT == "production"
 
 
-# Frontend origins
+# =====================================================
+# FRONTEND ORIGINS
+# =====================================================
+
 default_origins = (
     "http://127.0.0.1:5501,"
     "http://localhost:5501"
@@ -72,6 +76,20 @@ FRONTEND_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
+
+
+# =====================================================
+# DIRECTORY CONFIGURATION
+# =====================================================
+
+BASE_DIR = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+)
+
+FRONTEND_DIR = os.path.join(
+    BASE_DIR,
+    "frontend"
+)
 
 
 # =====================================================
@@ -152,7 +170,6 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 # MIDDLEWARE CONFIGURATION
 # =====================================================
 
-# SessionMiddleware must wrap CSRFMiddleware.
 app.add_middleware(CSRFMiddleware)
 
 app.add_middleware(
@@ -185,7 +202,7 @@ app.add_middleware(
 
 
 # =====================================================
-# REGISTER ROUTERS
+# REGISTER API ROUTERS
 # =====================================================
 
 app.include_router(auth.router)
@@ -199,19 +216,6 @@ app.include_router(tickets.router)
 app.include_router(venue_hires.router)
 app.include_router(agents.router)
 app.include_router(dashboard.router)
-
-
-# =====================================================
-# HOME
-# =====================================================
-
-@app.get("/")
-def home():
-
-    return {
-        "message": "Welcome to EventSphere!",
-        "status": "Project is running successfully"
-    }
 
 
 # =====================================================
@@ -240,3 +244,52 @@ def health():
                 "database": "Disconnected"
             }
         )
+
+# =====================================================
+# HOME REDIRECT
+# =====================================================
+
+@app.get("/", include_in_schema=False)
+def home():
+    return RedirectResponse(url="/index.html")
+
+# =====================================================
+# FRONTEND STATIC FILES
+# =====================================================
+
+if not os.path.isdir(FRONTEND_DIR):
+    raise RuntimeError(
+        f"Frontend directory not found: {FRONTEND_DIR}"
+    )
+
+# Fix wrong MIME types (Windows registry can break these)
+mimetypes.add_type("text/css", ".css")
+mimetypes.add_type("application/javascript", ".js")
+
+
+class FrontendFiles(StaticFiles):
+    """Serve frontend files with the correct Content-Type."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+
+        if path.endswith(".css"):
+            response.headers["content-type"] = "text/css; charset=utf-8"
+        elif path.endswith(".js"):
+            response.headers["content-type"] = "application/javascript; charset=utf-8"
+
+        # No caching while developing, so CSS changes show immediately
+        if ENVIRONMENT != "production":
+            response.headers["cache-control"] = "no-store"
+
+        return response
+
+
+app.mount(
+    "/",
+    FrontendFiles(
+        directory=FRONTEND_DIR,
+        html=True
+    ),
+    name="frontend"
+)

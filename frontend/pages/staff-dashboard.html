@@ -4,11 +4,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Staff Dashboard - EventSphere</title>
-    <link rel="stylesheet" href="../style.css?v=8">
+
+    <link rel="stylesheet" href="/style.css?v=14">
+    <link rel="stylesheet" href="/css/responsive.css?v=14">
+
+    <script src="https://unpkg.com/html5-qrcode"></script>
 
     <style>
-        .staff-container { width: 90%; max-width: 700px; margin: 45px auto; }
+        .staff-container {
+            width: 90%;
+            max-width: 700px;
+            margin: 45px auto;
+        }
 
         .staff-card {
             background: white;
@@ -17,10 +26,71 @@
             box-shadow: 0 5px 20px rgba(0,0,0,.08);
         }
 
-        .staff-card h1 { color: #172554; text-align: center; margin-bottom: 12px; }
-        .staff-description { text-align: center; color: #64748b; margin-bottom: 25px; }
-        .staff-card form { max-width: none; padding: 0; margin: 0; box-shadow: none; }
-        .staff-card button { width: 100%; margin-top: 12px; }
+        .staff-card h1 {
+            color: #172554;
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        .staff-description {
+            text-align: center;
+            color: #64748b;
+            margin-bottom: 25px;
+        }
+
+        .staff-card form {
+            max-width: none;
+            padding: 0;
+            margin: 0;
+            box-shadow: none;
+        }
+
+        .staff-card label {
+            display: block;
+            margin-top: 16px;
+            margin-bottom: 7px;
+            font-weight: 600;
+        }
+
+        .staff-card input,
+        .staff-card select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 7px;
+            box-sizing: border-box;
+        }
+
+        .staff-card button {
+            width: 100%;
+            margin-top: 12px;
+        }
+
+        .section-title {
+            color: #172554;
+            margin-top: 28px;
+            margin-bottom: 12px;
+        }
+
+        #reader {
+            width: 100%;
+            margin-top: 15px;
+            overflow: hidden;
+            border-radius: 8px;
+        }
+
+        .camera-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .camera-buttons button {
+            flex: 1;
+        }
+
+        .secondary-button {
+            background: #475569;
+        }
 
         #result {
             margin-top: 22px;
@@ -32,8 +102,17 @@
             overflow-wrap: anywhere;
         }
 
-        #result.success { display: block; background: #dcfce7; color: #166534; }
-        #result.error { display: block; background: #fee2e2; color: #991b1b; }
+        #result.success {
+            display: block;
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        #result.error {
+            display: block;
+            background: #fee2e2;
+            color: #991b1b;
+        }
 
         .staff-info {
             margin-top: 25px;
@@ -44,51 +123,119 @@
             font-size: 14px;
         }
 
-        .logout-button { background: #dc2626; }
+        .logout-button {
+            background: #dc2626;
+        }
+
+        button:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+        }
 
         @media(max-width:600px) {
-            .staff-container { width: 94%; margin: 25px auto; }
-            .staff-card { padding: 20px; }
+            .staff-container {
+                width: 94%;
+                margin: 25px auto;
+            }
+
+            .staff-card {
+                padding: 20px;
+            }
+
+            .camera-buttons {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
 
 <body>
+
 <header>
     <div class="logo">EventSphere Staff</div>
+
     <nav>
-        <a href="../index.html">Home</a>
+        <a href="/index.html">Home</a>
         <button class="logout-button" onclick="logout()">Logout</button>
     </nav>
 </header>
 
 <main class="staff-container">
+
     <section class="staff-card">
+
         <h1>Ticket Check-in</h1>
 
         <p class="staff-description">
-            Verify customer tickets before allowing event entry.
+            Scan customer QR tickets or enter ticket codes manually.
         </p>
 
+        <!-- Event Selection -->
+
+        <label for="eventId">Select Event and Venue</label>
+
+        <select id="eventId">
+            <option value="">Loading events...</option>
+        </select>
+
+        <!-- QR Camera Scanner -->
+
+        <h3 class="section-title">Scan QR Code</h3>
+
+        <div id="reader"></div>
+
+        <div class="camera-buttons">
+
+            <button type="button" id="startCamera">
+                Start Camera Scanner
+            </button>
+
+            <button
+                type="button"
+                id="stopCamera"
+                class="secondary-button"
+                disabled
+            >
+                Stop Camera
+            </button>
+
+        </div>
+
+        <!-- Manual Ticket Entry -->
+
+        <h3 class="section-title">Manual Ticket Entry</h3>
+
         <form id="scanForm">
+
             <label for="ticketCode">Ticket Code</label>
-            <input type="text" id="ticketCode" required
-                   placeholder="Enter or scan ticket code" autocomplete="off">
 
-            <label for="eventId">Event ID (optional)</label>
-            <input type="number" id="eventId" min="1"
-                   placeholder="Enter event ID if required">
+            <input
+                type="text"
+                id="ticketCode"
+                required
+                placeholder="Enter ticket code"
+                autocomplete="off"
+            >
 
-            <button type="submit" id="scanButton">Verify Ticket</button>
+            <button type="submit" id="scanButton">
+                Verify Ticket
+            </button>
+
         </form>
+
+        <!-- Result -->
 
         <div id="result" role="status" aria-live="polite"></div>
 
         <div class="staff-info">
-            Enter the ticket code to verify its validity. A successful verification
-            records the ticket as checked in. A ticket cannot be used twice.
+            Select the correct event before scanning a ticket.
+            Each valid ticket can be checked in only once.
+            Cancelled tickets and tickets belonging to another event
+            will be rejected.
         </div>
+
     </section>
+
 </main>
 
 <footer>
@@ -96,78 +243,441 @@
 </footer>
 
 <script>
-const API = "http://127.0.0.1:8000";
 
-document.getElementById("scanForm").addEventListener("submit", async function(event) {
-    event.preventDefault();
+const API = window.location.origin;
 
-    const code = document.getElementById("ticketCode").value.trim();
-    const eventIdValue = document.getElementById("eventId").value;
+let html5QrCode = null;
+let isScanning = false;
+let isProcessing = false;
+
+
+// ----------------------------------
+// CSRF Headers
+// ----------------------------------
+
+function getHeaders() {
+
+    return {
+        "X-CSRF-Token": sessionStorage.getItem("csrf_token") || ""
+    };
+
+}
+
+
+// ----------------------------------
+// Display Result
+// ----------------------------------
+
+function showResult(message, type) {
+
     const resultBox = document.getElementById("result");
-    const button = document.getElementById("scanButton");
 
-    if (!code) {
-        resultBox.className = "error";
-        resultBox.textContent = "Please enter a ticket code.";
+    resultBox.className = type;
+    resultBox.textContent = message;
+    resultBox.style.display = "block";
+
+}
+
+
+// ----------------------------------
+// Load Published Events and Venues
+// ----------------------------------
+
+async function loadEvents() {
+
+    const eventSelect = document.getElementById("eventId");
+
+    try {
+
+        const response = await fetch(`${API}/staff/events`, {
+            method: "GET",
+            credentials: "include"
+        });
+
+        if (!response.ok) {
+
+            throw new Error(
+                "Could not load events. Please check staff login."
+            );
+
+        }
+
+        const events = await response.json();
+
+        eventSelect.innerHTML = `
+            <option value="">Select an event</option>
+        `;
+
+        events.forEach(event => {
+
+            const option = document.createElement("option");
+
+            option.value = event.event_id;
+
+            const venueName = event.venue_name || "Unknown Venue";
+
+            option.textContent =
+                `${event.title} - ${venueName} (ID: ${event.event_id})`;
+
+            eventSelect.appendChild(option);
+
+        });
+
+        if (events.length === 0) {
+
+            eventSelect.innerHTML = `
+                <option value="">No published events available</option>
+            `;
+
+            showResult(
+                "No published events found. Please publish an event first.",
+                "error"
+            );
+
+        }
+
+    } catch (error) {
+
+        eventSelect.innerHTML = `
+            <option value="">Unable to load events</option>
+        `;
+
+        showResult(error.message, "error");
+
+        console.error(error);
+
+    }
+
+}
+
+
+// ----------------------------------
+// Verify Ticket
+// ----------------------------------
+
+async function verifyTicket(ticketCode) {
+
+    if (isProcessing) {
         return;
     }
 
+    const eventId = document.getElementById("eventId").value;
+
+    if (!eventId) {
+
+        showResult(
+            "Please select an event before scanning.",
+            "error"
+        );
+
+        return;
+
+    }
+
+    if (!ticketCode || !ticketCode.trim()) {
+
+        showResult(
+            "Please enter or scan a ticket code.",
+            "error"
+        );
+
+        return;
+
+    }
+
+    isProcessing = true;
+
+    const button = document.getElementById("scanButton");
+
+    const cameraButton = document.getElementById("startCamera");
+
     button.disabled = true;
     button.textContent = "Verifying...";
+
+    cameraButton.disabled = true;
+
+    const resultBox = document.getElementById("result");
+
     resultBox.className = "";
     resultBox.style.display = "none";
 
     try {
-        let url = `${API}/tickets/scan/${encodeURIComponent(code)}`;
 
-        if (eventIdValue) {
-            url += `?event_id=${encodeURIComponent(eventIdValue)}`;
-        }
+        const url =
+            `${API}/tickets/scan/${encodeURIComponent(ticketCode.trim())}` +
+            `?event_id=${encodeURIComponent(eventId)}`;
 
         const response = await fetch(url, {
+
             method: "POST",
+
             credentials: "include",
-            headers: {
-                "X-CSRF-Token": sessionStorage.getItem("csrf_token") || ""
-            }
+
+            headers: getHeaders()
+
         });
 
         const result = await response.json();
 
         if (!response.ok) {
-            throw new Error(result.detail || result.message || "Ticket verification failed.");
+
+            throw new Error(
+                result.detail || "Ticket verification failed."
+            );
+
         }
 
-        resultBox.className = "success";
-        resultBox.textContent = result.message || "Ticket check-in successful!";
-        document.getElementById("scanForm").reset();
+        showResult(
+            `SUCCESS: ${result.message}. Event: ${result.event}. Ticket ID: ${result.ticket_id}`,
+            "success"
+        );
+
+        document.getElementById("ticketCode").value = "";
 
     } catch (error) {
-        resultBox.className = "error";
-        resultBox.textContent = error.message;
+
+        showResult(error.message, "error");
+
         console.error(error);
+
     } finally {
+
+        isProcessing = false;
+
         button.disabled = false;
         button.textContent = "Verify Ticket";
+
+        cameraButton.disabled = isScanning;
+
+        document.getElementById("ticketCode").focus();
+
     }
-});
+
+}
+
+
+// ----------------------------------
+// Manual Ticket Entry
+// ----------------------------------
+
+document.getElementById("scanForm").addEventListener(
+    "submit",
+    async function(event) {
+
+        event.preventDefault();
+
+        const code = document.getElementById("ticketCode").value.trim();
+
+        await verifyTicket(code);
+
+    }
+);
+
+
+// ----------------------------------
+// Start Camera Scanner
+// ----------------------------------
+
+document.getElementById("startCamera").addEventListener(
+    "click",
+    async function() {
+
+        if (isScanning || isProcessing) {
+            return;
+        }
+
+        if (!document.getElementById("eventId").value) {
+
+            showResult(
+                "Please select an event first.",
+                "error"
+            );
+
+            return;
+
+        }
+
+        if (typeof Html5Qrcode === "undefined") {
+
+            showResult(
+                "QR scanner library could not load. Use manual ticket entry.",
+                "error"
+            );
+
+            return;
+
+        }
+
+        const startButton = document.getElementById("startCamera");
+        const stopButton = document.getElementById("stopCamera");
+
+        startButton.disabled = true;
+
+        try {
+
+            html5QrCode = new Html5Qrcode("reader");
+
+            await html5QrCode.start(
+
+                { facingMode: "environment" },
+
+                {
+                    fps: 10,
+
+                    qrbox: {
+                        width: 250,
+                        height: 250
+                    }
+
+                },
+
+                async (decodedText) => {
+
+                    if (isProcessing) {
+                        return;
+                    }
+
+                    await stopCamera();
+
+                    await verifyTicket(decodedText);
+
+                },
+
+                () => {}
+
+            );
+
+            isScanning = true;
+
+            startButton.disabled = true;
+            stopButton.disabled = false;
+
+            showResult(
+                "Camera started. Point your camera at the ticket QR code.",
+                "success"
+            );
+
+        } catch (error) {
+
+            isScanning = false;
+
+            startButton.disabled = false;
+            stopButton.disabled = true;
+
+            showResult(
+                "Camera could not start. Allow camera permission or use manual entry.",
+                "error"
+            );
+
+            console.error(error);
+
+        }
+
+    }
+);
+
+
+// ----------------------------------
+// Stop Camera Scanner
+// ----------------------------------
+
+async function stopCamera() {
+
+    if (!html5QrCode || !isScanning) {
+        return;
+    }
+
+    try {
+
+        await html5QrCode.stop();
+
+        await html5QrCode.clear();
+
+    } catch (error) {
+
+        console.error("Camera stop error:", error);
+
+    }
+
+    isScanning = false;
+
+    document.getElementById("startCamera").disabled = false;
+
+    document.getElementById("stopCamera").disabled = true;
+
+}
+
+
+// ----------------------------------
+// Stop Button
+// ----------------------------------
+
+document.getElementById("stopCamera").addEventListener(
+    "click",
+    async function() {
+
+        await stopCamera();
+
+    }
+);
+
+
+// ----------------------------------
+// Change Event
+// ----------------------------------
+
+document.getElementById("eventId").addEventListener(
+    "change",
+    async function() {
+
+        if (isScanning) {
+
+            await stopCamera();
+
+        }
+
+    }
+);
+
+
+// ----------------------------------
+// Logout
+// ----------------------------------
 
 async function logout() {
+
     try {
+
         await fetch(`${API}/auth/logout`, {
+
             method: "POST",
+
             credentials: "include",
-            headers: {
-                "X-CSRF-Token": sessionStorage.getItem("csrf_token") || ""
-            }
+
+            headers: getHeaders()
+
         });
+
     } catch (error) {
+
         console.error(error);
+
     }
 
     sessionStorage.removeItem("csrf_token");
-    window.location.href = "./login.html";
+
+    window.location.href = "/pages/login.html";
+
 }
+
+
+// ----------------------------------
+// Initial Load
+// ----------------------------------
+
+loadEvents();
+
 </script>
+
 </body>
 </html>

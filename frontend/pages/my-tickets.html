@@ -1,33 +1,108 @@
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Tickets - EventSphere</title>
-    <link rel="stylesheet" href="../style.css?v=8">
+
+    <title>My Digital Tickets - EventSphere</title>
+
+    <link rel="stylesheet" href="/style.css?v=13">
+    <link rel="stylesheet" href="/css/responsive.css?v=13">
 
     <style>
-        .ticket-page { width: 90%; max-width: 900px; margin: 40px auto; }
+        .ticket-page {
+            width: 90%;
+            max-width: 900px;
+            margin: 40px auto;
+        }
+
+        .ticket-page h1 {
+            color: #172554;
+            margin-bottom: 25px;
+        }
+
         .ticket-card {
             background: white;
             padding: 25px;
             margin: 20px 0;
             border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,.08);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
             border-left: 5px solid #2563eb;
             overflow-wrap: anywhere;
         }
-        .ticket-card h3 { color: #172554; margin-bottom: 12px; }
-        .ticket-card img { display: block; width: 180px; max-width: 100%; margin: 18px auto; }
-        .ticket-code { font-weight: bold; overflow-wrap: anywhere; }
-        .ticket-status { font-weight: bold; }
+
+        .ticket-card h3 {
+            color: #172554;
+            margin-bottom: 15px;
+        }
+
+        .ticket-card p {
+            margin: 9px 0;
+        }
+
+        .ticket-card img {
+            display: block;
+            width: 190px;
+            max-width: 100%;
+            margin: 20px auto;
+        }
+
+        .ticket-code {
+            font-weight: bold;
+            overflow-wrap: anywhere;
+            background: #f1f5f9;
+            padding: 12px;
+            border-radius: 6px;
+        }
+
+        .ticket-status {
+            font-weight: bold;
+        }
+
+        .status-valid {
+            color: #15803d;
+        }
+
+        .status-cancelled {
+            color: #b91c1c;
+        }
+
+        .status-used {
+            color: #92400e;
+        }
+
+        .ticket-message {
+            padding: 15px;
+            margin: 20px 0;
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+
+        .ticket-loading {
+            text-align: center;
+            padding: 30px;
+        }
+
+        @media (max-width: 600px) {
+            .ticket-page {
+                width: 94%;
+                margin: 25px auto;
+            }
+
+            .ticket-card {
+                padding: 18px;
+            }
+        }
     </style>
 </head>
 
 <body>
+
 <header>
     <div class="logo">EventSphere</div>
+
     <nav>
         <a href="../index.html">Home</a>
         <a href="./events.html">Events</a>
@@ -35,81 +110,273 @@
     </nav>
 </header>
 
+
 <main class="ticket-page">
+
     <h1>My Digital Tickets</h1>
-    <div id="ticketList">Loading tickets...</div>
+
+    <div id="ticketList" class="ticket-loading">
+        Loading tickets...
+    </div>
+
 </main>
+
 
 <footer>
     <p>&copy; 2026 EventSphere. All Rights Reserved.</p>
 </footer>
 
+
 <script>
+
 const API = "http://127.0.0.1:8000";
 
+
 async function loadTickets() {
+
     const container = document.getElementById("ticketList");
 
+    container.textContent = "Loading tickets...";
+
     try {
-        const response = await fetch(`${API}/tickets/my-tickets`, {
-            credentials: "include"
-        });
+
+        const response = await fetch(
+            `${API}/tickets/my-tickets`,
+            {
+                method: "GET",
+                credentials: "include",
+                headers: {
+                    "Accept": "application/json"
+                }
+            }
+        );
 
         const tickets = await response.json();
 
         if (!response.ok) {
-            container.textContent = tickets.detail || "Please login to view your tickets.";
+
+            container.innerHTML = "";
+
+            const message = document.createElement("p");
+            message.className = "ticket-message";
+
+            message.textContent =
+                tickets.detail || "Please login to view your tickets.";
+
+            container.appendChild(message);
+
             return;
         }
 
+
         if (!Array.isArray(tickets) || tickets.length === 0) {
-            container.textContent = "No tickets available.";
+
+            container.innerHTML = "";
+
+            const message = document.createElement("p");
+            message.className = "ticket-message";
+
+            message.textContent = "No digital tickets available yet.";
+
+            container.appendChild(message);
+
             return;
         }
+
 
         container.innerHTML = "";
 
+
         tickets.forEach(ticket => {
+
             const card = document.createElement("div");
+
             card.className = "ticket-card";
 
+
+            // Event Name
+
             const heading = document.createElement("h3");
-            heading.textContent = ticket.event || "Event Ticket";
+
+            heading.textContent =
+                ticket.event || "Event Ticket";
+
+
+            // Ticket ID
 
             const info = document.createElement("p");
-            info.textContent = `Ticket ID: ${ticket.id}`;
+
+            info.textContent =
+                `Ticket ID: ${ticket.ticket_id}`;
+
+
+            // Booking ID
+
+            const bookingInfo = document.createElement("p");
+
+            bookingInfo.textContent =
+                `Booking ID: ${ticket.booking_id}`;
+
+
+            // Event ID
+
+            const eventInfo = document.createElement("p");
+
+            eventInfo.textContent =
+                `Event ID: ${ticket.event_id}`;
+
+
+            // Ticket Status
 
             const status = document.createElement("p");
+
             status.className = "ticket-status";
-            status.textContent =
-                `Status: ${ticket.status}${ticket.checked_in ? " (Checked in)" : ""}`;
 
-            card.append(heading, info, status);
+            if (ticket.checked_in) {
 
-            if (ticket.qr_code && ticket.status === "valid" && !ticket.checked_in) {
+                status.classList.add("status-used");
+
+                status.textContent = "Status: Already Checked In";
+
+            } else if (ticket.status === "valid") {
+
+                status.classList.add("status-valid");
+
+                status.textContent = "Status: Valid";
+
+            } else {
+
+                status.classList.add("status-cancelled");
+
+                status.textContent =
+                    `Status: ${ticket.status || "Cancelled"}`;
+
+            }
+
+
+            // Booking Status
+
+            const bookingStatus = document.createElement("p");
+
+            bookingStatus.textContent =
+                `Booking Status: ${ticket.booking_status || "Unknown"}`;
+
+
+            card.append(
+                heading,
+                info,
+                bookingInfo,
+                eventInfo,
+                status,
+                bookingStatus
+            );
+
+
+            // QR Code
+
+            if (
+                ticket.qr_code &&
+                ticket.status === "valid" &&
+                ticket.booking_status === "confirmed" &&
+                !ticket.checked_in
+            ) {
+
+                const qrHeading = document.createElement("p");
+
+                qrHeading.textContent = "Your Digital Ticket QR Code";
+
                 const image = document.createElement("img");
+
                 image.src = ticket.qr_code.startsWith("data:")
                     ? ticket.qr_code
                     : `data:image/png;base64,${ticket.qr_code}`;
+
                 image.alt = "Digital ticket QR code";
-                card.appendChild(image);
+
+                image.loading = "lazy";
+
+                card.append(qrHeading, image);
+
+            } else if (ticket.checked_in) {
+
+                const message = document.createElement("p");
+
+                message.className = "ticket-message";
+
+                message.textContent =
+                    "This ticket has already been used for event entry.";
+
+                card.appendChild(message);
+
+            } else if (ticket.status !== "valid") {
+
+                const message = document.createElement("p");
+
+                message.className = "ticket-message";
+
+                message.textContent =
+                    "This ticket is not valid for event entry.";
+
+                card.appendChild(message);
+
             }
 
+
+            // Ticket Code
+
             const code = document.createElement("p");
+
             code.className = "ticket-code";
-            code.textContent = `Ticket Code: ${ticket.ticket_code || "Not available"}`;
+
+            code.textContent =
+                `Ticket Code: ${ticket.ticket_code || "Not available"}`;
+
             card.appendChild(code);
 
+
+            // Check-in Time
+
+            if (ticket.checked_in_at) {
+
+                const checkInTime = document.createElement("p");
+
+                checkInTime.textContent =
+                    `Checked In At: ${new Date(ticket.checked_in_at).toLocaleString()}`;
+
+                card.appendChild(checkInTime);
+
+            }
+
+
             container.appendChild(card);
+
         });
 
     } catch (error) {
-        container.textContent = "Cannot connect to backend.";
-        console.error(error);
+
+        console.error("Ticket loading error:", error);
+
+        container.innerHTML = "";
+
+        const message = document.createElement("p");
+
+        message.className = "ticket-message";
+
+        message.textContent =
+            "Cannot connect to the EventSphere server. Please try again.";
+
+        container.appendChild(message);
+
     }
+
 }
 
+
+// Load tickets when page opens
+
 loadTickets();
+
 </script>
+
 </body>
 </html>

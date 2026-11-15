@@ -8,7 +8,8 @@
     <title>EventSphere - Event Booking</title>
 
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./style.css?v=8">
+    <link rel="stylesheet" href="./style.css?v=12">
+    <link rel="stylesheet" href="./css/responsive.css">
 </head>
 
 <body>
@@ -22,8 +23,11 @@
         <a href="./pages/venue-hire.html">Venue Hire</a>
         <a href="./pages/my-bookings.html">My Bookings</a>
         <a href="./pages/my-tickets.html">My Tickets</a>
+        <a href="/pages/staff-dashboard.html">Staff Dashboard</a>
         <a href="./pages/login.html">Login</a>
         <a href="./pages/register.html" class="nav-button">Register</a>
+
+        <button type="button" onclick="logout()">Logout</button>
     </nav>
 </header>
 
@@ -81,6 +85,40 @@
 <footer>
     <p>&copy; 2026 EventSphere. All Rights Reserved.</p>
 </footer>
+
+<script>
+async function logout() {
+
+    try {
+
+        const response = await fetch("/auth/logout", {
+            method: "POST",
+            credentials: "include",
+            headers: {
+                "X-CSRF-Token":
+                    sessionStorage.getItem("csrf_token") || ""
+            }
+        });
+
+        if (!response.ok) {
+            alert("Logout failed. Please try again.");
+            return;
+        }
+
+        sessionStorage.removeItem("csrf_token");
+
+        alert("Logout successful!");
+
+        window.location.href = "./pages/login.html";
+
+    } catch (error) {
+
+        console.error("Logout error:", error);
+
+        alert("Unable to connect to the server.");
+    }
+}
+</script>
 
 </body>
 </html>

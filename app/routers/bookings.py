@@ -19,10 +19,43 @@ router = APIRouter(
 )
 
 
+# --------------------------------
+# Booking Request Schema
+# --------------------------------
+
 class BookingCreate(BaseModel):
+
     event_id: int
+
     ticket_category_id: int
-    quantity: int = Field(gt=0, le=10)
+
+    quantity: int = Field(
+        gt=0,
+        le=10
+    )
+
+
+# --------------------------------
+# Secure Unique Ticket Code
+# --------------------------------
+
+def generate_ticket_code(db: Session):
+
+    """
+    Generate a cryptographically secure,
+    unique ticket code.
+    """
+
+    while True:
+
+        code = secrets.token_urlsafe(32)
+
+        existing_ticket = db.query(Ticket).filter(
+            Ticket.ticket_code == code
+        ).first()
+
+        if not existing_ticket:
+            return code
 
 
 # --------------------------------
@@ -35,24 +68,33 @@ def create_booking(
     db: Session = Depends(get_db),
     current_user=Depends(require_role("attendee"))
 ):
+
     try:
+
+        # Prevent simultaneous overbooking
         db.execute(text("BEGIN IMMEDIATE"))
+
+        # Check event
 
         event = db.query(Event).filter(
             Event.id == data.event_id
         ).first()
 
         if not event:
+
             raise HTTPException(
                 status_code=404,
                 detail="Event not found"
             )
 
         if event.status != "published":
+
             raise HTTPException(
                 status_code=400,
                 detail="Event is not available"
             )
+
+        # Check ticket category
 
         category = db.query(TicketCategory).filter(
             TicketCategory.id == data.ticket_category_id,
@@ -60,10 +102,13 @@ def create_booking(
         ).first()
 
         if not category:
+
             raise HTTPException(
                 status_code=404,
                 detail="Ticket category not found"
             )
+
+        # Calculate booked tickets
 
         booked_count = db.query(
             func.count(Ticket.id)
@@ -79,12 +124,17 @@ def create_booking(
         available = category.quantity - booked_count
 
         if data.quantity > available:
+
             raise HTTPException(
                 status_code=400,
                 detail=f"Only {available} tickets are available"
             )
 
+        # Calculate total price
+
         total = category.price * data.quantity
+
+        # Create booking
 
         booking = Booking(
             user_id=current_user.id,
@@ -97,12 +147,16 @@ def create_booking(
         )
 
         db.add(booking)
+
         db.flush()
+
+        # Generate individual tickets
 
         ticket_codes = []
 
         for _ in range(data.quantity):
-            code = secrets.token_urlsafe(32)
+
+            code = generate_ticket_code(db)
 
             ticket = Ticket(
                 booking_id=booking.id,
@@ -113,36 +167,56 @@ def create_booking(
             )
 
             db.add(ticket)
+
             ticket_codes.append(code)
 
+        # Save booking and tickets
+
         db.commit()
+
         db.refresh(booking)
 
         return {
+
             "message": "Booking successful",
+
             "booking_id": booking.id,
+
             "event": event.title,
+
             "ticket_category": category.name,
+
             "quantity": data.quantity,
+
             "total_amount": total,
+
             "payment_reference": booking.payment_reference,
+
             "status": booking.status,
+
             "tickets": ticket_codes
+
         }
 
     except HTTPException:
+
         db.rollback()
+
         raise
 
     except SQLAlchemyError:
+
         db.rollback()
+
         raise HTTPException(
             status_code=503,
             detail="Booking could not be completed. Please try again."
         )
 
     except Exception:
+
         db.rollback()
+
         raise HTTPException(
             status_code=500,
             detail="An unexpected error occurred while creating booking"
@@ -158,6 +232,7 @@ def my_bookings(
     db: Session = Depends(get_db),
     current_user=Depends(require_role("attendee"))
 ):
+
     bookings = db.query(Booking).filter(
         Booking.user_id == current_user.id
     ).all()
@@ -165,18 +240,27 @@ def my_bookings(
     result = []
 
     for booking in bookings:
+
         event = db.query(Event).filter(
             Event.id == booking.event_id
         ).first()
 
         result.append({
+
             "booking_id": booking.id,
+
             "event": event.title if event else "Unknown",
+
             "quantity": booking.quantity,
+
             "total_amount": booking.total_amount,
+
             "payment_reference": booking.payment_reference,
+
             "status": booking.status,
+
             "created_at": booking.created_at
+
         })
 
     return result
@@ -192,7 +276,9 @@ def cancel_booking(
     db: Session = Depends(get_db),
     current_user=Depends(require_role("attendee"))
 ):
+
     try:
+
         db.execute(text("BEGIN IMMEDIATE"))
 
         booking = db.query(Booking).filter(
@@ -201,12 +287,14 @@ def cancel_booking(
         ).first()
 
         if not booking:
+
             raise HTTPException(
                 status_code=404,
                 detail="Booking not found"
             )
 
         if booking.status != "confirmed":
+
             raise HTTPException(
                 status_code=400,
                 detail="Booking cannot be cancelled"
@@ -216,46 +304,64 @@ def cancel_booking(
             Ticket.booking_id == booking.id
         ).all()
 
-        # Do not cancel a booking after admission.
+        # Prevent cancellation after admission
+
         if any(
             getattr(ticket, "checked_in", False)
             for ticket in tickets
         ):
+
             raise HTTPException(
                 status_code=400,
                 detail="Booking cannot be cancelled after check-in"
             )
 
+        # Cancel booking
+
         booking.status = "cancelled"
 
+        # Cancel all tickets
+
         for ticket in tickets:
+
             ticket.status = "cancelled"
 
         db.commit()
 
         return {
+
             "message": "Booking cancelled successfully",
+
             "booking_id": booking.id,
+
             "status": "cancelled",
+
             "refund": (
                 "Simulated refund only. "
                 "No real payment was processed."
             )
+
         }
 
     except HTTPException:
+
         db.rollback()
+
         raise
 
     except SQLAlchemyError:
+
         db.rollback()
+
         raise HTTPException(
             status_code=503,
             detail="Could not cancel booking. Please try again."
         )
 
     except Exception:
+
         db.rollback()
+
         raise HTTPException(
             status_code=500,
             detail="An unexpected error occurred while cancelling booking"
@@ -271,6 +377,7 @@ def all_bookings(
     db: Session = Depends(get_db),
     current_user=Depends(require_role("admin"))
 ):
+
     bookings = db.query(Booking).order_by(
         Booking.created_at.desc()
     ).all()
@@ -278,20 +385,31 @@ def all_bookings(
     result = []
 
     for booking in bookings:
+
         event = db.query(Event).filter(
             Event.id == booking.event_id
         ).first()
 
         result.append({
+
             "booking_id": booking.id,
+
             "user_id": booking.user_id,
+
             "event_id": booking.event_id,
+
             "event": event.title if event else "Unknown",
+
             "quantity": booking.quantity,
+
             "total_amount": booking.total_amount,
+
             "payment_reference": booking.payment_reference,
+
             "status": booking.status,
+
             "created_at": booking.created_at
+
         })
 
     return result

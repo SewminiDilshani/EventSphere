@@ -35,7 +35,6 @@ def my_tickets(
     db: Session = Depends(get_db),
     current_user=Depends(require_role("attendee"))
 ):
-    # Do not use order_by here; keeps compatibility with test query mocks.
     bookings = db.query(Booking).filter(
         Booking.user_id == current_user.id
     ).all()
@@ -43,6 +42,7 @@ def my_tickets(
     result = []
 
     for booking in bookings:
+
         tickets = db.query(Ticket).filter(
             Ticket.booking_id == booking.id
         ).all()
@@ -56,11 +56,13 @@ def my_tickets(
         )
 
         for ticket in tickets:
+
             qr_base64 = None
 
             if (
                 ticket.status == "valid"
                 and booking_status == "confirmed"
+                and not getattr(ticket, "checked_in", False)
             ):
                 qr = qrcode.make(ticket.ticket_code)
 
@@ -103,6 +105,7 @@ def process_ticket_scan(
     db,
     expected_event_id=None
 ):
+
     ticket = db.query(Ticket).filter(
         Ticket.ticket_code == ticket_code
     ).first()
@@ -110,29 +113,29 @@ def process_ticket_scan(
     if not ticket:
         raise HTTPException(
             status_code=404,
-            detail="Invalid ticket"
+            detail="Invalid ticket. Ticket not found."
         )
 
     if ticket.status != "valid":
         raise HTTPException(
             status_code=400,
-            detail="Cancelled ticket"
-        )
-
-    if getattr(ticket, "checked_in", False):
-        raise HTTPException(
-            status_code=400,
-            detail="Ticket already used"
+            detail="Ticket rejected. This ticket has been cancelled."
         )
 
     booking = db.query(Booking).filter(
         Booking.id == ticket.booking_id
     ).first()
 
-    if not booking or booking.status != "confirmed":
+    if not booking:
         raise HTTPException(
             status_code=400,
-            detail="Booking is not valid"
+            detail="Ticket rejected. Booking not found."
+        )
+
+    if booking.status != "confirmed":
+        raise HTTPException(
+            status_code=400,
+            detail="Ticket rejected. Booking is not confirmed."
         )
 
     event = db.query(Event).filter(
@@ -142,7 +145,7 @@ def process_ticket_scan(
     if not event:
         raise HTTPException(
             status_code=404,
-            detail="Event not found"
+            detail="Ticket rejected. Event not found."
         )
 
     if (
@@ -151,12 +154,54 @@ def process_ticket_scan(
     ):
         raise HTTPException(
             status_code=400,
-            detail="Ticket belongs to a different event"
+            detail="Ticket rejected. This ticket belongs to a different event."
         )
 
+    if getattr(ticket, "checked_in", False):
+        raise HTTPException(
+            status_code=400,
+            detail="Ticket rejected. This ticket has already been used."
+        )
+
+    # Atomic update prevents two simultaneous scans
+    # from admitting the same ticket.
+
     try:
-        ticket.checked_in = True
-        ticket.checked_in_at = datetime.now()
+
+        updated_rows = db.query(Ticket).filter(
+            Ticket.id == ticket.id,
+            Ticket.status == "valid",
+            Ticket.checked_in == False
+        ).update(
+            {
+                "checked_in": True,
+                "checked_in_at": datetime.now()
+            },
+            synchronize_session=False
+        )
+
+        if updated_rows == 0:
+
+            db.rollback()
+
+            db.refresh(ticket)
+
+            if ticket.status != "valid":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Ticket rejected. This ticket has been cancelled."
+                )
+
+            if ticket.checked_in:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Ticket rejected. This ticket has already been used."
+                )
+
+            raise HTTPException(
+                status_code=400,
+                detail="Ticket could not be checked in."
+            )
 
         db.commit()
 
@@ -167,15 +212,18 @@ def process_ticket_scan(
             "event_id": event.id,
             "event": event.title,
             "checked_in": True,
-            "checked_in_at": ticket.checked_in_at
+            "checked_in_at": datetime.now()
         }
+
+    except HTTPException:
+        raise
 
     except Exception:
         db.rollback()
 
         raise HTTPException(
             status_code=500,
-            detail="Ticket scanning failed"
+            detail="Ticket scanning failed. Please try again."
         )
 
 
@@ -223,6 +271,7 @@ def get_all_tickets(
     db: Session = Depends(get_db),
     current_user=Depends(require_role("admin"))
 ):
+
     tickets = db.query(Ticket).order_by(
         Ticket.id.desc()
     ).all()
@@ -230,6 +279,7 @@ def get_all_tickets(
     result = []
 
     for ticket in tickets:
+
         booking = db.query(Booking).filter(
             Booking.id == ticket.booking_id
         ).first()

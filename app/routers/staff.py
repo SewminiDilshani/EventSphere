@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import require_role
-from app.models import User, Event, Ticket, Booking
+from app.models import User, Event, Venue, Ticket, Booking
 
 
 router = APIRouter(
@@ -43,18 +43,26 @@ def staff_events(
         Event.start_time.asc()
     ).all()
 
-    return [
-        {
+    result = []
+
+    for event in events:
+
+        venue = db.query(Venue).filter(
+            Venue.id == event.venue_id
+        ).first()
+
+        result.append({
             "event_id": event.id,
             "title": event.title,
             "category": event.category,
             "venue_id": event.venue_id,
+            "venue_name": venue.name if venue else "Unknown Venue",
             "start_time": event.start_time,
             "end_time": event.end_time,
             "status": event.status
-        }
-        for event in events
-    ]
+        })
+
+    return result
 
 
 # -----------------------------

@@ -1,62 +1,118 @@
 
+import logging
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import get_db
 from app.dependencies import require_role
 from app.models import Venue, VenueHire, Event
+
 
 router = APIRouter(
     prefix="/venue-hires",
     tags=["Private Venue Hire"]
 )
 
+logger = logging.getLogger(__name__)
+
 TURNAROUND_BUFFER = timedelta(hours=1)
+SRI_LANKA_TZ = ZoneInfo("Asia/Colombo")
 
 
-# -----------------------------
+# --------------------------------
+# Time Helper
+# --------------------------------
+
+def to_local_naive(value: datetime) -> datetime:
+    """
+    Convert timezone-aware datetime to Sri Lankan local time.
+    Database stores naive local datetime values.
+    """
+
+    if value.tzinfo is not None:
+        return value.astimezone(SRI_LANKA_TZ).replace(tzinfo=None)
+
+    return value
+
+
+def get_local_now() -> datetime:
+    return datetime.now(SRI_LANKA_TZ).replace(tzinfo=None)
+
+
+# --------------------------------
 # Request Schema
-# -----------------------------
+# --------------------------------
 
 class VenueHireCreate(BaseModel):
     venue_id: int
-    purpose: str
+    purpose: str = Field(min_length=3, max_length=500)
     guest_count: int = Field(gt=0)
     start_time: datetime
     end_time: datetime
 
 
-# -----------------------------
-# Helper: Check Availability
-# -----------------------------
+# --------------------------------
+# Lock Venue for Concurrent Requests
+# --------------------------------
+
+def lock_venue(db: Session, venue_id: int):
+
+    dialect = db.get_bind().dialect.name
+
+    if dialect == "sqlite":
+        db.execute(text("BEGIN IMMEDIATE"))
+
+        return db.query(Venue).filter(
+            Venue.id == venue_id
+        ).first()
+
+    return db.query(Venue).filter(
+        Venue.id == venue_id
+    ).with_for_update().first()
+
+
+# --------------------------------
+# Check Venue Availability
+# --------------------------------
 
 def is_venue_available(
-    db,
-    venue_id,
-    start_time,
-    end_time,
+    db: Session,
+    venue_id: int,
+    start_time: datetime,
+    end_time: datetime,
     exclude_hire_id=None
 ):
+
+    buffered_start = start_time - TURNAROUND_BUFFER
+    buffered_end = end_time + TURNAROUND_BUFFER
+
+    # Check existing events
+
     event_conflict = db.query(Event).filter(
         Event.venue_id == venue_id,
         Event.status != "cancelled",
-        Event.start_time < end_time + TURNAROUND_BUFFER,
-        Event.end_time > start_time - TURNAROUND_BUFFER
+        Event.start_time < buffered_end,
+        Event.end_time > buffered_start
     ).first()
 
     if event_conflict:
         return False
+
+    # Check existing venue hire requests
 
     hire_query = db.query(VenueHire).filter(
         VenueHire.venue_id == venue_id,
         VenueHire.status.in_(
             ["pending", "approved", "confirmed"]
         ),
-        VenueHire.start_time < end_time + TURNAROUND_BUFFER,
-        VenueHire.end_time > start_time - TURNAROUND_BUFFER
+        VenueHire.start_time < buffered_end,
+        VenueHire.end_time > buffered_start
     )
 
     if exclude_hire_id is not None:
@@ -67,35 +123,45 @@ def is_venue_available(
     return hire_query.first() is None
 
 
-# -----------------------------
-# Helper: Find Alternative Venues
-# -----------------------------
+# --------------------------------
+# Find Alternative Venues
+# --------------------------------
 
 def find_alternative_venues(
-    db,
-    requested_venue_id,
-    guest_count,
-    start_time,
-    end_time
+    db: Session,
+    requested_venue_id: int,
+    guest_count: int,
+    start_time: datetime,
+    end_time: datetime
 ):
+
     venues = db.query(Venue).filter(
         Venue.is_open_for_hire == True,
         Venue.capacity >= guest_count,
         Venue.id != requested_venue_id
     ).all()
 
+    hours = (
+        end_time - start_time
+    ).total_seconds() / 3600
+
     alternatives = []
 
     for venue in venues:
-        if is_venue_available(
+
+        available = is_venue_available(
             db,
             venue.id,
             start_time,
             end_time
-        ):
-            hours = (
-                end_time - start_time
-            ).total_seconds() / 3600
+        )
+
+        if available:
+
+            estimated_price = round(
+                float(venue.hourly_rate) * hours,
+                2
+            )
 
             alternatives.append({
                 "venue_id": venue.id,
@@ -103,18 +169,16 @@ def find_alternative_venues(
                 "location": venue.location,
                 "capacity": venue.capacity,
                 "hourly_rate": venue.hourly_rate,
-                "estimated_price": round(
-                    hours * venue.hourly_rate, 2
-                )
+                "estimated_price": estimated_price
             })
 
     return alternatives
 
 
-# -----------------------------
+# --------------------------------
 # Request Private Venue Hire
 # Attendee Only
-# -----------------------------
+# --------------------------------
 
 @router.post("/")
 def request_venue_hire(
@@ -122,126 +186,165 @@ def request_venue_hire(
     db: Session = Depends(get_db),
     current_user=Depends(require_role("attendee"))
 ):
-    venue = db.query(Venue).filter(
-        Venue.id == data.venue_id
-    ).first()
-
-    if not venue:
-        raise HTTPException(
-            status_code=404,
-            detail="Venue not found"
-        )
-
-    if not venue.is_open_for_hire:
-        raise HTTPException(
-            status_code=400,
-            detail="Venue is not open for hire"
-        )
-
-    if data.start_time >= data.end_time:
-        raise HTTPException(
-            status_code=400,
-            detail="End time must be after start time"
-        )
-
-    if data.start_time <= datetime.now():
-        raise HTTPException(
-            status_code=400,
-            detail="Choose a future date and time"
-        )
-
-    if data.guest_count > venue.capacity:
-        raise HTTPException(
-            status_code=400,
-            detail="Guest count exceeds venue capacity"
-        )
-
-    # Check requested venue availability
-    available = is_venue_available(
-        db,
-        venue.id,
-        data.start_time,
-        data.end_time
-    )
-
-    # If unavailable, suggest alternatives
-    if not available:
-        alternatives = find_alternative_venues(
-            db,
-            venue.id,
-            data.guest_count,
-            data.start_time,
-            data.end_time
-        )
-
-        return {
-            "status": "unavailable",
-            "message": "Requested venue is unavailable",
-            "alternatives": alternatives
-        }
-
-    # Calculate hire price
-    hours = (
-        data.end_time - data.start_time
-    ).total_seconds() / 3600
-
-    total_price = round(
-        hours * venue.hourly_rate, 2
-    )
-
-    # Create pending request.
-    # Admin must approve before final confirmation.
-    hire = VenueHire(
-        user_id=current_user.id,
-        venue_id=venue.id,
-        purpose=data.purpose,
-        guest_count=data.guest_count,
-        start_time=data.start_time,
-        end_time=data.end_time,
-        total_price=total_price,
-        status="pending"
-    )
 
     try:
+
+        start_time = to_local_naive(data.start_time)
+        end_time = to_local_naive(data.end_time)
+
+        now = get_local_now()
+
+        # Validate date and time
+
+        if start_time >= end_time:
+            raise HTTPException(
+                status_code=400,
+                detail="End time must be after start time"
+            )
+
+        if start_time <= now:
+            raise HTTPException(
+                status_code=400,
+                detail="Choose a future date and time"
+            )
+
+        # Lock venue
+
+        venue = lock_venue(
+            db,
+            data.venue_id
+        )
+
+        if not venue:
+            raise HTTPException(
+                status_code=404,
+                detail="Venue not found"
+            )
+
+        if not venue.is_open_for_hire:
+            raise HTTPException(
+                status_code=400,
+                detail="Venue is not open for hire"
+            )
+
+        if data.guest_count > venue.capacity:
+            raise HTTPException(
+                status_code=400,
+                detail="Guest count exceeds venue capacity"
+            )
+
+        # Check availability
+
+        available = is_venue_available(
+            db,
+            venue.id,
+            start_time,
+            end_time
+        )
+
+        if not available:
+
+            alternatives = find_alternative_venues(
+                db,
+                venue.id,
+                data.guest_count,
+                start_time,
+                end_time
+            )
+
+            db.rollback()
+
+            return {
+                "status": "unavailable",
+                "message": "Requested venue is unavailable",
+                "alternatives": alternatives
+            }
+
+        # Calculate price
+
+        hours = (
+            end_time - start_time
+        ).total_seconds() / 3600
+
+        total_price = round(
+            float(venue.hourly_rate) * hours,
+            2
+        )
+
+        # Save request as pending.
+        # Admin must confirm or reject it.
+
+        hire = VenueHire(
+            user_id=current_user.id,
+            venue_id=venue.id,
+            purpose=data.purpose,
+            guest_count=data.guest_count,
+            start_time=start_time,
+            end_time=end_time,
+            total_price=total_price,
+            status="pending"
+        )
+
         db.add(hire)
         db.commit()
         db.refresh(hire)
 
-    except Exception:
+        return {
+            "message": "Venue hire request submitted successfully. Waiting for admin approval.",
+            "hire_id": hire.id,
+            "venue": venue.name,
+            "purpose": hire.purpose,
+            "guest_count": hire.guest_count,
+            "start_time": hire.start_time,
+            "end_time": hire.end_time,
+            "total_price": total_price,
+            "status": hire.status,
+            "payment_note": "Simulated payment only"
+        }
+
+    except HTTPException:
         db.rollback()
+        raise
+
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("Venue hire database error")
+
         raise HTTPException(
-            status_code=500,
-            detail="Could not submit venue hire request"
+            status_code=503,
+            detail="Could not process venue hire. Please try again."
         )
 
-    return {
-        "message": "Venue hire request submitted",
-        "hire_id": hire.id,
-        "venue": venue.name,
-        "purpose": hire.purpose,
-        "guest_count": hire.guest_count,
-        "total_price": total_price,
-        "status": hire.status,
-        "message_for_user": "Waiting for admin approval"
-    }
+    except Exception:
+        db.rollback()
+        logger.exception("Venue hire unexpected error")
+
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred"
+        )
 
 
-# -----------------------------
+# --------------------------------
 # View My Hire Requests
 # Attendee Only
-# -----------------------------
+# --------------------------------
 
 @router.get("/my-requests")
 def my_venue_requests(
     db: Session = Depends(get_db),
     current_user=Depends(require_role("attendee"))
 ):
+
     hires = db.query(VenueHire).filter(
         VenueHire.user_id == current_user.id
-    ).order_by(VenueHire.id.desc()).all()
+    ).order_by(
+        VenueHire.id.desc()
+    ).all()
 
     return [
         {
+            "id": hire.id,
             "hire_id": hire.id,
             "venue_id": hire.venue_id,
             "purpose": hire.purpose,
@@ -255,22 +358,23 @@ def my_venue_requests(
     ]
 
 
-# -----------------------------
-# View All Hire Requests
-# Admin Only
-# -----------------------------
+# --------------------------------
+# Admin: View All Hire Requests
+# --------------------------------
 
 @router.get("/admin/all")
 def all_venue_requests(
     db: Session = Depends(get_db),
     current_user=Depends(require_role("admin"))
 ):
+
     hires = db.query(VenueHire).order_by(
         VenueHire.id.desc()
     ).all()
 
     return [
         {
+            "id": hire.id,
             "hire_id": hire.id,
             "user_id": hire.user_id,
             "venue_id": hire.venue_id,
@@ -285,9 +389,9 @@ def all_venue_requests(
     ]
 
 
-# -----------------------------
-# Admin Approve / Reject
-# -----------------------------
+# --------------------------------
+# Admin: Approve / Reject Pending Request
+# --------------------------------
 
 @router.put("/admin/{hire_id}/decision")
 def decide_venue_request(
@@ -296,77 +400,105 @@ def decide_venue_request(
     db: Session = Depends(get_db),
     current_user=Depends(require_role("admin"))
 ):
-    hire = db.query(VenueHire).filter(
-        VenueHire.id == hire_id
-    ).first()
-
-    if not hire:
-        raise HTTPException(
-            status_code=404,
-            detail="Request not found"
-        )
-
-    if hire.status != "pending":
-        raise HTTPException(
-            status_code=400,
-            detail="Only pending requests can be reviewed"
-        )
-
-    if decision not in ["confirmed", "rejected"]:
-        raise HTTPException(
-            status_code=400,
-            detail="Decision must be confirmed or rejected"
-        )
-
-    if decision == "confirmed":
-        venue = db.query(Venue).filter(
-            Venue.id == hire.venue_id
-        ).first()
-
-        if not venue or not venue.is_open_for_hire:
-            raise HTTPException(
-                status_code=400,
-                detail="Venue is not available for hire"
-            )
-
-        # Recheck availability before approval
-        available = is_venue_available(
-            db,
-            hire.venue_id,
-            hire.start_time,
-            hire.end_time,
-            exclude_hire_id=hire.id
-        )
-
-        if not available:
-            alternatives = find_alternative_venues(
-                db,
-                hire.venue_id,
-                hire.guest_count,
-                hire.start_time,
-                hire.end_time
-            )
-
-            return {
-                "status": "unavailable",
-                "message": "Venue is no longer available",
-                "alternatives": alternatives
-            }
-
-    hire.status = decision
 
     try:
+
+        hire = db.query(VenueHire).filter(
+            VenueHire.id == hire_id
+        ).first()
+
+        if not hire:
+            raise HTTPException(
+                status_code=404,
+                detail="Request not found"
+            )
+
+        if hire.status != "pending":
+            raise HTTPException(
+                status_code=400,
+                detail="Only pending requests can be reviewed"
+            )
+
+        if decision not in ["confirmed", "rejected"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Decision must be confirmed or rejected"
+            )
+
+        if decision == "confirmed":
+
+            venue = lock_venue(
+                db,
+                hire.venue_id
+            )
+
+            if not venue or not venue.is_open_for_hire:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Venue is not available for hire"
+                )
+
+            if hire.guest_count > venue.capacity:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Guest count exceeds venue capacity"
+                )
+
+            available = is_venue_available(
+                db,
+                hire.venue_id,
+                hire.start_time,
+                hire.end_time,
+                exclude_hire_id=hire.id
+            )
+
+            if not available:
+
+                alternatives = find_alternative_venues(
+                    db,
+                    hire.venue_id,
+                    hire.guest_count,
+                    hire.start_time,
+                    hire.end_time
+                )
+
+                db.rollback()
+
+                return {
+                    "status": "unavailable",
+                    "message": "Venue is no longer available",
+                    "alternatives": alternatives
+                }
+
+        hire.status = decision
+
         db.commit()
         db.refresh(hire)
-    except Exception:
+
+        return {
+            "message": "Venue request updated successfully",
+            "hire_id": hire.id,
+            "status": hire.status
+        }
+
+    except HTTPException:
         db.rollback()
+        raise
+
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("Venue hire decision database error")
+
         raise HTTPException(
-            status_code=500,
+            status_code=503,
             detail="Could not update venue request"
         )
 
-    return {
-        "message": "Venue request updated",
-        "hire_id": hire.id,
-        "status": hire.status
-    }
+    except Exception:
+        db.rollback()
+        logger.exception("Venue hire decision unexpected error")
+
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred"
+        )

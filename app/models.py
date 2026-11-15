@@ -361,3 +361,73 @@ class WaitlistEntry(Base):
     user = relationship("User")
 
     event = relationship("Event")
+
+
+# --------------------------------
+# Persistent Agent State
+# --------------------------------
+
+class AgentState(Base):
+    __tablename__ = "agent_states"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    agent_name = Column(
+        String(100),
+        unique=True,
+        nullable=False
+    )
+
+    state_data = Column(
+        Text,
+        default="{}",
+        nullable=False
+    )
+
+    updated_at = Column(
+        DateTime,
+        default=datetime.now,
+        onupdate=datetime.now,
+        nullable=False
+    )
+
+
+# --------------------------------
+# Persistent User Notifications
+# --------------------------------
+
+class UserNotification(Base):
+    __tablename__ = "user_notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False
+    )
+
+    message = Column(
+        Text,
+        nullable=False
+    )
+
+    notification_type = Column(
+        String(50),
+        default="general",
+        nullable=False
+    )
+
+    is_read = Column(
+        Boolean,
+        default=False,
+        nullable=False
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.now,
+        nullable=False
+    )
+
+    user = relationship("User")
