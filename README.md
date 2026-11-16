@@ -292,11 +292,7 @@ The application is intended to be deployed using Railway.
 
 **Live Application URL:**
 
-YOUR_RAILWAY_PUBLIC_HTTPS_URL
-
-**GitHub Repository:**
-
-YOUR_GITHUB_REPOSITORY_URL
+https://eventsphere-production-6e283e01.up.railway.app/index.html
 
 The production deployment should use HTTPS, configured environment variables, and persistent database storage.
 
