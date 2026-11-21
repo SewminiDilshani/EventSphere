@@ -559,6 +559,30 @@ def test_favicon_asset_is_served(api):
     assert response.headers["content-type"].startswith("image/")
 
 
+def test_logout_works_after_refreshing_a_stale_csrf_token(api):
+    client, session_factory = api
+    email = "attendee@example.test"
+    add_user(session_factory, email, "attendee")
+    login(client, email)
+
+    stale_logout = client.post(
+        "/auth/logout",
+        headers={"X-CSRF-Token": "stale-token"}
+    )
+    assert stale_logout.status_code == 403
+
+    refreshed_token = client.get("/auth/csrf-token")
+    assert refreshed_token.status_code == 200
+    csrf_token = refreshed_token.json()["csrf_token"]
+
+    logout_response = client.post(
+        "/auth/logout",
+        headers={"X-CSRF-Token": csrf_token}
+    )
+    assert logout_response.status_code == 200
+    assert client.get("/auth/me").status_code == 401
+
+
 def test_events_and_venue_hires_cannot_overlap_or_exceed_venue_capacity(api):
     client, session_factory = api
     admin_email = "admin@example.test"

@@ -851,21 +851,6 @@ async function loadAgentMessages() {
     }
 }
 
-async function logout() {
-    try {
-        await fetch(`${API}/auth/logout`, {
-            method: "POST",
-            credentials: "include",
-            headers: csrfHeaders()
-        });
-    } catch (error) {
-        console.error(error);
-    }
-
-    sessionStorage.removeItem("csrf_token");
-    window.location.href = "./login.html";
-}
-
 loadDashboard();
 loadVenues();
 loadEvents();
@@ -873,5 +858,6 @@ loadHireRequests();
 loadAgentMessages();
 </script>
 
+<script src="/auth.js"></script>
 </body>
 </html>

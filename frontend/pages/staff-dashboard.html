@@ -644,33 +644,6 @@ document.getElementById("eventId").addEventListener(
 // Logout
 // ----------------------------------
 
-async function logout() {
-
-    try {
-
-        await fetch(`${API}/auth/logout`, {
-
-            method: "POST",
-
-            credentials: "include",
-
-            headers: getHeaders()
-
-        });
-
-    } catch (error) {
-
-        console.error(error);
-
-    }
-
-    sessionStorage.removeItem("csrf_token");
-
-    window.location.href = "/pages/login.html";
-
-}
-
-
 // ----------------------------------
 // Initial Load
 // ----------------------------------
@@ -679,5 +652,6 @@ loadEvents();
 
 </script>
 
+<script src="/auth.js"></script>
 </body>
 </html>

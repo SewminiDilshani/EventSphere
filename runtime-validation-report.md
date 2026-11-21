@@ -8,9 +8,9 @@
 | Check | Result | Evidence |
 |---|---|---|
 | Local startup | PASS | `python -m uvicorn app.main:app --host 127.0.0.1 --port 8001`; `/health` returned 200 with database connected. |
-| Pytest integration/unit suite | PASS, exit code 0 | 71 passed, 0 failed. Includes 16 agent tests, overbooking, duplicate check-in, refunds, booking cutoff, venue-hire conflicts, auto-confirmation, and favicon serving. |
+| Pytest integration/unit suite | PASS, exit code 0 | 72 passed, 0 failed. Includes 16 agent tests, overbooking, duplicate check-in, refunds, booking cutoff, venue-hire conflicts, auto-confirmation, favicon serving, and logout after stale-CSRF refresh. |
 | Python compilation | PASS | `python -m compileall -q app tests` |
-| Mobile browser smoke | PARTIAL | Integrated browser at 375 px verified home, events, login, and password toggle; no horizontal overflow or page exceptions. Unauthenticated staff/admin requests were rejected. |
+| Mobile browser smoke | PARTIAL | Integrated browser at 375 px verified home, events, login, and password toggle; no horizontal overflow. A temporary local Admin login reached the Admin Dashboard and displayed Create Venue; sign-out succeeded with an intentionally stale CSRF token. Unauthenticated staff/admin requests were rejected. |
 | Live deployment | PARTIAL | Public health/OpenAPI/events GETs returned 200. The live API does not expose the event-cover route and has zero published events. No production writes. |
 | PostgreSQL verification | UNVERIFIED | Docker is unavailable and no isolated PostgreSQL test database was provided; local tests used SQLite. |
 
@@ -23,6 +23,8 @@
 - Password visibility toggle changed from “Show password” to “Hide password”.
 - `/favicon.ico` returned 200 with an image content type after adding the missing asset.
 - Staff and admin data requests returned 401 when unauthenticated.
+- A throwaway local Admin account logged in successfully, redirected to `/pages/admin-dashboard.html`, and displayed the Create Venue form.
+- With a deliberately stale CSRF token in browser storage, the logout helper fetched a fresh token, cleared the session, and returned to Login; a subsequent `/auth/me` request returned 401.
 
 ## Production and Assignment Gaps
 

@@ -23,6 +23,10 @@ The platform uses simulated payments only. No real bank, card, or payment gatewa
 - Role-based access control.
 - Admin, staff, and attendee roles.
 - Session-based authentication and CSRF protection.
+- Successful login routes Admin and Staff accounts to their dashboards;
+  public registration creates attendee accounts.
+- Logout refreshes the session CSRF token before clearing the session, so a
+  stale browser token does not block sign-out.
 
 ### Venue Management
 
