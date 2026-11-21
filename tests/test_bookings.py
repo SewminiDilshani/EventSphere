@@ -1,4 +1,5 @@
 
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -6,6 +7,7 @@ import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
+from app.timeutils import get_local_now
 from app.routers.bookings import (
     BookingCreate,
     create_booking,
@@ -18,6 +20,7 @@ def make_query(result=None, scalar_result=None):
     query = MagicMock()
     query.filter.return_value = query
     query.join.return_value = query
+    query.with_for_update.return_value = query
     query.first.return_value = result
     query.all.return_value = result if isinstance(result, list) else []
     query.scalar.return_value = scalar_result
@@ -88,7 +91,11 @@ def test_create_booking_event_not_published():
 
 # 5. Ticket category not found
 def test_create_booking_category_not_found():
-    event = SimpleNamespace(id=1, status="published")
+    event = SimpleNamespace(
+        id=1,
+        status="published",
+        start_time=get_local_now() + timedelta(days=2)
+    )
 
     db = MagicMock()
     db.query.side_effect = [
@@ -111,7 +118,11 @@ def test_create_booking_category_not_found():
 
 # 6. Insufficient tickets
 def test_create_booking_insufficient_tickets():
-    event = SimpleNamespace(id=1, status="published")
+    event = SimpleNamespace(
+        id=1,
+        status="published",
+        start_time=get_local_now() + timedelta(days=2)
+    )
 
     category = SimpleNamespace(
         id=1,
@@ -124,7 +135,8 @@ def test_create_booking_insufficient_tickets():
     db.query.side_effect = [
         make_query(event),
         make_query(category),
-        make_query(scalar_result=4)
+        make_query(scalar_result=4),
+        make_query(scalar_result=0)
     ]
 
     data = BookingCreate(
@@ -143,10 +155,19 @@ def test_create_booking_insufficient_tickets():
 # 7. Successful booking
 def test_create_booking_success(monkeypatch):
     from app.routers import bookings
+    ticket_codes = iter(["ticket-one", "ticket-two"])
+    monkeypatch.setattr(
+        bookings,
+        "generate_ticket_code",
+        lambda db: next(ticket_codes)
+    )
 
     class FakeBooking:
         id = 10
-        status = "confirmed"
+        event_id = MagicMock()
+        status = MagicMock()
+        refund_amount = 0
+        refund_reference = None
 
         def __init__(self, **kwargs):
             for key, value in kwargs.items():
@@ -155,8 +176,10 @@ def test_create_booking_success(monkeypatch):
     class FakeTicket:
         id = 1
         booking_id = 1
-        ticket_category_id = 1
-        status = "valid"
+        ticket_category_id = MagicMock()
+        ticket_code = MagicMock()
+        status = MagicMock()
+        checked_in = MagicMock()
 
         def __init__(self, **kwargs):
             for key, value in kwargs.items():
@@ -168,7 +191,8 @@ def test_create_booking_success(monkeypatch):
     event = SimpleNamespace(
         id=1,
         title="Vavuniya Music Festival",
-        status="published"
+        status="published",
+        start_time=get_local_now() + timedelta(days=2)
     )
 
     category = SimpleNamespace(
@@ -182,6 +206,7 @@ def test_create_booking_success(monkeypatch):
     db.query.side_effect = [
         make_query(event),
         make_query(category),
+        make_query(scalar_result=0),
         make_query(scalar_result=0)
     ]
 
@@ -240,6 +265,7 @@ def test_my_bookings_success():
 # 9. Booking not found during cancellation
 def test_cancel_booking_not_found():
     db = MagicMock()
+    db.get_bind.return_value.dialect.name = "sqlite"
     db.query.return_value.filter.return_value.first.return_value = None
 
     with pytest.raises(HTTPException) as error:
@@ -272,16 +298,24 @@ def test_cancel_booking_success():
     booking = SimpleNamespace(
         id=1,
         user_id=1,
-        status="confirmed"
+        event_id=1,
+        total_amount=1000,
+        status="confirmed",
+        refund_amount=0,
+        refund_reference=None
     )
 
     ticket1 = SimpleNamespace(status="valid")
     ticket2 = SimpleNamespace(status="valid")
+    event = SimpleNamespace(
+        start_time=datetime.now() + timedelta(days=2)
+    )
 
     db = MagicMock()
     db.query.side_effect = [
         make_query(booking),
-        make_query([ticket1, ticket2])
+        make_query([ticket1, ticket2]),
+        make_query(event)
     ]
 
     result = cancel_booking(1, db, make_user())
@@ -289,8 +323,12 @@ def test_cancel_booking_success():
     assert result["message"] == "Booking cancelled successfully"
     assert result["booking_id"] == 1
     assert result["status"] == "cancelled"
+    assert result["refund_amount"] == 1000
+    assert result["refund_reference"].startswith("SIM-REF-")
+    assert "24 hours" in result["refund_policy"]
 
     assert booking.status == "cancelled"
+    assert booking.refund_amount == 1000
     assert ticket1.status == "cancelled"
     assert ticket2.status == "cancelled"
 

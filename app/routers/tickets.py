@@ -5,6 +5,7 @@ import base64
 import qrcode
 
 from datetime import datetime
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -19,6 +20,8 @@ router = APIRouter(
     prefix="/tickets",
     tags=["Digital Tickets"]
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ManualTicketScan(BaseModel):
@@ -62,6 +65,8 @@ def my_tickets(
             if (
                 ticket.status == "valid"
                 and booking_status == "confirmed"
+                and event is not None
+                and event.status == "published"
                 and not getattr(ticket, "checked_in", False)
             ):
                 qr = qrcode.make(ticket.ticket_code)
@@ -78,6 +83,7 @@ def my_tickets(
                 "booking_id": booking.id,
                 "event_id": booking.event_id,
                 "event": event.title if event else "Unknown",
+                "event_status": event.status if event else "unknown",
                 "ticket_code": ticket.ticket_code,
                 "status": ticket.status,
                 "booking_status": booking_status,
@@ -122,9 +128,20 @@ def process_ticket_scan(
             detail="Ticket rejected. This ticket has been cancelled."
         )
 
-    booking = db.query(Booking).filter(
+    if getattr(ticket, "checked_in", False):
+        raise HTTPException(
+            status_code=400,
+            detail="Ticket rejected. This ticket has already been used."
+        )
+
+    booking_query = db.query(Booking).filter(
         Booking.id == ticket.booking_id
-    ).first()
+    )
+
+    if db.get_bind().dialect.name != "sqlite":
+        booking_query = booking_query.with_for_update()
+
+    booking = booking_query.first()
 
     if not booking:
         raise HTTPException(
@@ -148,6 +165,12 @@ def process_ticket_scan(
             detail="Ticket rejected. Event not found."
         )
 
+    if event.status != "published":
+        raise HTTPException(
+            status_code=400,
+            detail="Event is not available for check-in"
+        )
+
     if (
         expected_event_id is not None
         and booking.event_id != expected_event_id
@@ -155,12 +178,6 @@ def process_ticket_scan(
         raise HTTPException(
             status_code=400,
             detail="Ticket rejected. This ticket belongs to a different event."
-        )
-
-    if getattr(ticket, "checked_in", False):
-        raise HTTPException(
-            status_code=400,
-            detail="Ticket rejected. This ticket has already been used."
         )
 
     # Atomic update prevents two simultaneous scans
@@ -220,6 +237,7 @@ def process_ticket_scan(
 
     except Exception:
         db.rollback()
+        logger.exception("Ticket check-in failed")
 
         raise HTTPException(
             status_code=500,

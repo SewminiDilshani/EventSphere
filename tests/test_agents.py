@@ -152,15 +152,62 @@ def test_ticket_valid():
     ticket.id = 1
     ticket.status = "valid"
     ticket.checked_in = False
+    ticket.booking_id = 2
+
+    booking = MagicMock()
+    booking.status = "confirmed"
+    booking.event_id = 3
+
+    event = MagicMock()
+    event.status = "published"
 
     db = MagicMock()
-    db.query.return_value.filter.return_value.first.return_value = ticket
+    ticket_query, booking_query, event_query = (
+        MagicMock(),
+        MagicMock(),
+        MagicMock()
+    )
+    ticket_query.filter.return_value.first.return_value = ticket
+    booking_query.filter.return_value.first.return_value = booking
+    event_query.filter.return_value.first.return_value = event
+    db.query.side_effect = [ticket_query, booking_query, event_query]
 
     result, content = TicketAgent().validate_ticket("ABC123", db)
 
     assert result == "AGREE"
     assert content["ticket_id"] == 1
     assert content["ticket_status"] == "valid"
+
+
+def test_ticket_for_cancelled_event_is_refused():
+    ticket = MagicMock()
+    ticket.id = 1
+    ticket.status = "valid"
+    ticket.checked_in = False
+    ticket.booking_id = 2
+
+    booking = MagicMock()
+    booking.status = "confirmed"
+    booking.event_id = 3
+
+    event = MagicMock()
+    event.status = "cancelled"
+
+    db = MagicMock()
+    ticket_query, booking_query, event_query = (
+        MagicMock(),
+        MagicMock(),
+        MagicMock()
+    )
+    ticket_query.filter.return_value.first.return_value = ticket
+    booking_query.filter.return_value.first.return_value = booking
+    event_query.filter.return_value.first.return_value = event
+    db.query.side_effect = [ticket_query, booking_query, event_query]
+
+    result, content = TicketAgent().validate_ticket("ABC123", db)
+
+    assert result == "REFUSE"
+    assert content["reason"] == "Event is not available"
 
 
 # Waitlist Agent Tests

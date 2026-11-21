@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from app.routers.auth import (
     RegisterData,
@@ -82,6 +83,15 @@ def test_register_existing_email():
 
     assert error.value.status_code == 400
     assert error.value.detail == "Email already registered"
+
+
+def test_registration_rejects_whitespace_only_name():
+    with pytest.raises(ValidationError):
+        RegisterData(
+            name="  ",
+            email="test@example.com",
+            password="Test12345"
+        )
 
 
 # 3. Login Success Test

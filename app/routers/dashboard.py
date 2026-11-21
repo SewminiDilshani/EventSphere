@@ -53,6 +53,10 @@ def dashboard_summary(
         Booking.status == "confirmed"
     ).scalar() or 0
 
+    total_refunds = db.query(
+        func.sum(Booking.refund_amount)
+    ).scalar() or 0
+
     total_tickets = db.query(Ticket).filter(
         Ticket.status == "valid"
     ).count()
@@ -74,6 +78,7 @@ def dashboard_summary(
         "total_bookings": total_bookings,
         "cancelled_bookings": cancelled_bookings,
         "total_revenue": total_revenue,
+        "total_refunds": total_refunds,
         "total_tickets": total_tickets,
         "checked_in_tickets": checked_in,
         "not_checked_in": not_checked_in,
@@ -270,6 +275,8 @@ def recent_bookings(
             "quantity": booking.quantity,
             "total_amount": booking.total_amount,
             "payment_reference": booking.payment_reference,
+            "refund_amount": booking.refund_amount,
+            "refund_reference": booking.refund_reference,
             "status": booking.status,
             "created_at": booking.created_at
         })

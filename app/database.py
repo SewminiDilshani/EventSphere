@@ -8,10 +8,20 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 # Load environment variables before reading DATABASE_URL
 load_dotenv()
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:SFOKBxygtacdcTKLvwuuMvLUDbXNzYrP@postgres.railway.internal:5432/railway"
-)
+ENVIRONMENT = os.getenv(
+    "ENVIRONMENT",
+    os.getenv("RAILWAY_ENVIRONMENT", "development")
+).strip().lower()
+
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+
+if not DATABASE_URL:
+    if ENVIRONMENT == "production":
+        raise RuntimeError(
+            "DATABASE_URL must be configured in production"
+        )
+
+    DATABASE_URL = "sqlite:///./eventsphere.db"
 
 # Support common PostgreSQL connection URL format
 if DATABASE_URL.startswith("postgres://"):

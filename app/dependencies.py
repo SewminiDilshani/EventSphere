@@ -45,6 +45,26 @@ def get_current_user(
     return user
 
 
+def get_optional_current_user(
+    request: Request,
+    db: Session = Depends(get_db)
+) -> User | None:
+    user_id = request.session.get("user_id")
+
+    if not user_id:
+        return None
+
+    user = db.query(User).filter(
+        User.id == user_id
+    ).first()
+
+    if not user or not user.is_active:
+        request.session.clear()
+        return None
+
+    return user
+
+
 # -----------------------------
 # Check User Role
 # -----------------------------

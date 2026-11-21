@@ -85,6 +85,12 @@ def event_checkin_summary(
             detail="Event not found"
         )
 
+    if event.status != "published":
+        raise HTTPException(
+            status_code=404,
+            detail="Event not found"
+        )
+
     total_tickets = db.query(Ticket).join(
         Booking,
         Ticket.booking_id == Booking.id
@@ -128,6 +134,12 @@ def event_checkin_list(
     ).first()
 
     if not event:
+        raise HTTPException(
+            status_code=404,
+            detail="Event not found"
+        )
+
+    if event.status != "published":
         raise HTTPException(
             status_code=404,
             detail="Event not found"

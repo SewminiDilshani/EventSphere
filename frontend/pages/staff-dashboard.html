@@ -7,8 +7,8 @@
 
     <title>Staff Dashboard - EventSphere</title>
 
-    <link rel="stylesheet" href="/style.css?v=14">
-    <link rel="stylesheet" href="/css/responsive.css?v=14">
+    <link rel="stylesheet" href="/style.css?v=15">
+    <link rel="stylesheet" href="/css/responsive.css?v=15">
 
     <script src="https://unpkg.com/html5-qrcode"></script>
 
@@ -23,18 +23,18 @@
             background: white;
             padding: 30px;
             border-radius: 12px;
-            box-shadow: 0 5px 20px rgba(0,0,0,.08);
+            box-shadow: var(--shadow);
         }
 
         .staff-card h1 {
-            color: #172554;
+            color: var(--ink);
             text-align: center;
             margin-bottom: 12px;
         }
 
         .staff-description {
             text-align: center;
-            color: #64748b;
+            color: var(--muted);
             margin-bottom: 25px;
         }
 
@@ -56,7 +56,7 @@
         .staff-card select {
             width: 100%;
             padding: 12px;
-            border: 1px solid #cbd5e1;
+            border: 1px solid var(--line);
             border-radius: 7px;
             box-sizing: border-box;
         }
@@ -67,7 +67,7 @@
         }
 
         .section-title {
-            color: #172554;
+            color: var(--ink);
             margin-top: 28px;
             margin-bottom: 12px;
         }
@@ -89,7 +89,7 @@
         }
 
         .secondary-button {
-            background: #475569;
+            background: var(--ink-soft);
         }
 
         #result {
@@ -104,27 +104,27 @@
 
         #result.success {
             display: block;
-            background: #dcfce7;
-            color: #166534;
+            background: var(--success-pale);
+            color: var(--success);
         }
 
         #result.error {
             display: block;
-            background: #fee2e2;
-            color: #991b1b;
+            background: var(--danger-pale);
+            color: var(--danger-dark);
         }
 
         .staff-info {
             margin-top: 25px;
             padding: 15px;
-            background: #eff6ff;
+            background: var(--brand-pale);
             border-radius: 8px;
-            color: #1e40af;
+            color: var(--brand-dark);
             font-size: 14px;
         }
 
         .logout-button {
-            background: #dc2626;
+            background: var(--danger);
         }
 
         button:disabled {

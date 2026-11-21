@@ -5,57 +5,130 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Event Details - EventSphere</title>
-    <link rel="stylesheet" href="/style.css?v=12">
-    <link rel="stylesheet" href="/css/responsive.css?v=12">
+    <link rel="stylesheet" href="/style.css?v=15">
+    <link rel="stylesheet" href="/css/responsive.css?v=15">
 
     <style>
         .details-section {
-            width: 90%;
-            max-width: 850px;
-            margin: 45px auto;
+            width: min(1040px, 92%);
+            margin: 42px auto 64px;
         }
 
         .details-card {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 3px 15px rgba(0,0,0,.08);
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: var(--surface);
+            box-shadow: var(--shadow);
         }
 
-        .details-card h1 { color: #172554; margin-bottom: 20px; }
-        .details-card p { margin: 14px 0; line-height: 1.6; }
+        .event-cover,
+        .event-cover-placeholder {
+            display: block;
+            width: 100%;
+            max-height: 520px;
+            aspect-ratio: 16 / 7;
+            object-fit: cover;
+            background: linear-gradient(135deg, var(--ink), var(--brand) 62%, var(--accent));
+        }
 
-        .booking-box {
-            margin-top: 28px;
-            padding: 24px;
-            background: #f5f7fb;
+        .event-cover-placeholder {
+            display: grid;
+            place-items: center;
+            color: #fff;
+            font-size: clamp(1.5rem, 4vw, 2.5rem);
+            font-weight: 750;
+        }
+
+        .details-content { padding: clamp(22px, 5vw, 44px); }
+        .details-content h1 { margin: 0 0 10px; }
+        .event-category {
+            display: inline-block;
+            margin: 0 0 12px;
+            padding: 4px 11px;
+            border-radius: 999px;
+            background: var(--brand-pale);
+            color: var(--brand-dark);
+            font-size: .82rem;
+            font-weight: 700;
+        }
+
+        .event-description {
+            margin: 0;
+            color: var(--ink-soft);
+            white-space: pre-line;
+        }
+
+        .event-facts {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+            gap: 12px;
+            margin: 26px 0 32px;
+        }
+
+        .event-fact {
+            padding: 15px 17px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: var(--canvas);
+        }
+
+        .event-fact strong {
+            display: block;
+            margin-bottom: 3px;
+            color: var(--muted);
+            font-size: .78rem;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+
+        .ticket-options { margin: 0 0 30px; }
+        .ticket-options h2 { margin: 0 0 14px; }
+        .ticket-list { display: grid; gap: 10px; }
+        .ticket-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 13px 15px;
+            border: 1px solid var(--line);
             border-radius: 10px;
         }
 
-        .booking-box select, .booking-box input {
+        .ticket-row span:last-child {
+            color: var(--brand-dark);
+            font-weight: 700;
+            text-align: right;
+        }
+
+        .ticket-empty { color: var(--muted); }
+
+        .booking-box {
+            padding: clamp(18px, 4vw, 28px);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: var(--brand-pale);
+        }
+
+        .booking-box h2 { margin-top: 0; }
+        .booking-box select,
+        .booking-box input {
             width: 100%;
             box-sizing: border-box;
             padding: 12px;
             margin: 10px 0 18px;
-            border: 1px solid #ccc;
+            border: 1px solid var(--line);
             border-radius: 6px;
         }
 
-        .book-button {
-            padding: 13px 25px;
-            background: #2563eb;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-
-        .book-button:disabled { background: #999; cursor: not-allowed; }
-        #message { margin-top: 15px; font-weight: bold; overflow-wrap: anywhere; }
+        .book-button:disabled { opacity: .6; cursor: not-allowed; }
+        #message { margin-top: 15px; font-weight: 700; overflow-wrap: anywhere; }
+        .back-link { display: inline-block; margin-bottom: 16px; }
 
         @media(max-width:600px) {
-            .details-section { width: 94%; margin: 25px auto; }
-            .details-card { padding: 20px; }
+            .details-section { width: 94%; margin: 24px auto 42px; }
+            .event-cover, .event-cover-placeholder { aspect-ratio: 4 / 3; }
+            .ticket-row { flex-direction: column; gap: 3px; }
+            .ticket-row span:last-child { text-align: left; }
         }
     </style>
 </head>
@@ -73,34 +146,48 @@
 </header>
 
 <main class="details-section">
-    <div class="details-card">
+    <a class="back-link" href="./events.html">← Back to events</a>
+    <article class="details-card">
+        <div id="coverPlaceholder" class="event-cover-placeholder">EventSphere</div>
+        <img id="eventCover" class="event-cover" alt="" hidden>
 
-        <h1 id="eventTitle">Loading event...</h1>
+        <div class="details-content">
+            <p class="event-category" id="category">Event</p>
+            <h1 id="eventTitle">Loading event...</h1>
+            <p class="event-description" id="description"></p>
 
-        <p><strong>Category:</strong> <span id="category">-</span></p>
-        <p><strong>Description:</strong> <span id="description">-</span></p>
-        <p><strong>Venue ID:</strong> <span id="venueId">-</span></p>
-        <p><strong>Start:</strong> <span id="startTime">-</span></p>
-        <p><strong>End:</strong> <span id="endTime">-</span></p>
+            <section class="event-facts" aria-label="Event information">
+                <div class="event-fact"><strong>Date</strong><span id="eventDate">-</span></div>
+                <div class="event-fact"><strong>Time</strong><span id="eventTime">-</span></div>
+                <div class="event-fact"><strong>Venue</strong><span id="venueName">-</span></div>
+                <div class="event-fact"><strong>Location</strong><span id="venueLocation">-</span></div>
+            </section>
 
-        <div class="booking-box">
-            <h2>Book Your Tickets</h2>
+            <section class="ticket-options">
+                <h2>Ticket availability</h2>
+                <div class="ticket-list" id="ticketList">
+                    <p class="ticket-empty">Loading ticket options...</p>
+                </div>
+            </section>
 
-            <label for="ticketCategory">Ticket Category</label>
-            <select id="ticketCategory">
-                <option value="">Loading ticket categories...</option>
-            </select>
+            <div class="booking-box">
+                <h2>Book your tickets</h2>
+                <label for="ticketCategory">Ticket category</label>
+                <select id="ticketCategory">
+                    <option value="">Loading ticket categories...</option>
+                </select>
 
-            <label for="quantity">Quantity</label>
-            <input type="number" id="quantity" min="1" max="10" value="1">
+                <label for="quantity">Quantity</label>
+                <input type="number" id="quantity" min="1" max="10" value="1">
 
-            <button class="book-button" id="bookButton" onclick="bookTickets()">
-                Book Tickets
-            </button>
+                <button class="book-button" id="bookButton" onclick="bookTickets()">
+                    Book Tickets
+                </button>
 
-            <p id="message" role="status" aria-live="polite"></p>
+                <p id="message" role="status" aria-live="polite"></p>
+            </div>
         </div>
-    </div>
+    </article>
 </main>
 
 <footer>
@@ -110,6 +197,18 @@
 <script>
 const API = window.location.origin;
 const eventId = new URLSearchParams(window.location.search).get("id");
+const EVENT_TIME_ZONE = "Asia/Colombo";
+
+function parseEventTime(value) {
+    return new Date(/[zZ]|[+-]\d{2}:\d{2}$/.test(value) ? value : `${value}+05:30`);
+}
+
+function formatEventTime(value, options) {
+    return new Intl.DateTimeFormat("en-LK", {
+        ...options,
+        timeZone: EVENT_TIME_ZONE
+    }).format(parseEventTime(value));
+}
 
 function csrfHeaders() {
     return {
@@ -135,16 +234,41 @@ async function loadEvent() {
             throw new Error(event.detail || "Event not found.");
         }
 
+        document.title = `${event.title} - EventSphere`;
         document.getElementById("eventTitle").textContent = event.title;
         document.getElementById("category").textContent = event.category || "-";
         document.getElementById("description").textContent = event.description || "-";
-        document.getElementById("venueId").textContent = event.venue_id;
+        document.getElementById("eventDate").textContent =
+            formatEventTime(event.start_time, {
+                day: "2-digit",
+                month: "long",
+                year: "numeric"
+            });
+        document.getElementById("eventTime").textContent =
+            `${formatEventTime(event.start_time, {
+                hour: "2-digit",
+                minute: "2-digit"
+            })} – ${formatEventTime(event.end_time, {
+                hour: "2-digit",
+                minute: "2-digit"
+            })}`;
+        document.getElementById("venueName").textContent =
+            event.venue_name || "To be announced";
+        document.getElementById("venueLocation").textContent =
+            event.venue_location || "To be announced";
 
-        document.getElementById("startTime").textContent =
-            new Date(event.start_time).toLocaleString();
-
-        document.getElementById("endTime").textContent =
-            new Date(event.end_time).toLocaleString();
+        const cover = document.getElementById("eventCover");
+        const placeholder = document.getElementById("coverPlaceholder");
+        if (event.cover_image_url) {
+            cover.src = event.cover_image_url;
+            cover.alt = `Cover image for ${event.title}`;
+            cover.hidden = false;
+            placeholder.hidden = true;
+            cover.onerror = () => {
+                cover.hidden = true;
+                placeholder.hidden = false;
+            };
+        }
 
         await loadCategories();
 
@@ -157,6 +281,7 @@ async function loadEvent() {
 
 async function loadCategories() {
     const select = document.getElementById("ticketCategory");
+    const ticketList = document.getElementById("ticketList");
 
     try {
         const response = await fetch(
@@ -173,19 +298,43 @@ async function loadCategories() {
 
         if (!Array.isArray(categories) || categories.length === 0) {
             select.innerHTML = "<option value=''>No ticket categories available</option>";
+            ticketList.innerHTML = "";
+            document.getElementById("bookButton").disabled = true;
+            const empty = document.createElement("p");
+            empty.className = "ticket-empty";
+            empty.textContent = "Tickets are not available yet.";
+            ticketList.appendChild(empty);
             return;
         }
 
+        ticketList.innerHTML = "";
         categories.forEach(category => {
             const option = document.createElement("option");
             option.value = category.id;
+            const available = category.available_quantity ?? category.quantity;
             option.textContent =
-                `${category.name} - Rs. ${category.price} (Available: ${category.quantity})`;
+                `${category.name} - Rs. ${category.price} (Available: ${available})`;
+            option.disabled = available <= 0;
             select.appendChild(option);
+
+            const row = document.createElement("div");
+            row.className = "ticket-row";
+            const name = document.createElement("span");
+            name.textContent = `${category.name} · ${available} available`;
+            const price = document.createElement("span");
+            price.textContent = `Rs. ${Number(category.price).toLocaleString("en-LK")}`;
+            row.append(name, price);
+            ticketList.appendChild(row);
         });
+
+        const bookButton = document.getElementById("bookButton");
+        bookButton.disabled = categories.every(
+            category => (category.available_quantity ?? category.quantity) <= 0
+        );
 
     } catch (error) {
         select.innerHTML = "<option value=''>Unable to load tickets</option>";
+        ticketList.textContent = error.message;
         document.getElementById("message").textContent = error.message;
     }
 }
@@ -199,26 +348,26 @@ async function bookTickets() {
 
     if (!sessionStorage.getItem("csrf_token")) {
         message.textContent = "Please login before booking tickets.";
-        message.style.color = "red";
+        message.style.color = "var(--danger)";
         return;
     }
 
     if (!categoryId) {
         message.textContent = "Please select a ticket category.";
-        message.style.color = "red";
+        message.style.color = "var(--danger)";
         return;
     }
 
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) {
         message.textContent = "Enter a quantity between 1 and 10.";
-        message.style.color = "red";
+        message.style.color = "var(--danger)";
         return;
     }
 
     button.disabled = true;
     button.textContent = "Processing...";
     message.textContent = "Processing your booking...";
-    message.style.color = "#333";
+    message.style.color = "var(--ink-soft)";
 
     try {
         const response = await fetch(`${API}/bookings/`, {
@@ -238,14 +387,14 @@ async function bookTickets() {
             throw new Error(result.detail || "Booking failed.");
         }
 
-        message.style.color = "green";
+        message.style.color = "var(--success)";
         message.textContent =
             `Booking successful! Payment reference: ${result.payment_reference || "Created"}`;
 
         await loadCategories();
 
     } catch (error) {
-        message.style.color = "red";
+        message.style.color = "var(--danger)";
         message.textContent = error.message;
         console.error(error);
     } finally {

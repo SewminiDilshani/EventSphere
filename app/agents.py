@@ -173,16 +173,28 @@ class TicketAgent(BaseAgent):
 
         booking_id = getattr(ticket, "booking_id", None)
 
-        if isinstance(booking_id, int):
+        if not isinstance(booking_id, int):
+            return "REFUSE", {
+                "reason": "Booking is not confirmed"
+            }
 
-            booking = db.query(Booking).filter(
-                Booking.id == booking_id
-            ).first()
+        booking = db.query(Booking).filter(
+            Booking.id == booking_id
+        ).first()
 
-            if not booking or booking.status != "confirmed":
-                return "REFUSE", {
-                    "reason": "Booking is not confirmed"
-                }
+        if not booking or booking.status != "confirmed":
+            return "REFUSE", {
+                "reason": "Booking is not confirmed"
+            }
+
+        event = db.query(Event).filter(
+            Event.id == booking.event_id
+        ).first()
+
+        if not event or event.status != "published":
+            return "REFUSE", {
+                "reason": "Event is not available"
+            }
 
         return "AGREE", {
             "ticket_id": ticket.id,
@@ -403,7 +415,7 @@ class AgentRequest(BaseModel):
     receiver: str
     performative: str
     content: dict = Field(default_factory=dict)
-    conversation_id: str | None = None
+    conversation_id: str | None = Field(default=None, max_length=100)
 
 
 # =====================================================
@@ -764,7 +776,6 @@ async def automatic_waitlist_expiry():
 # START AUTOMATIC TIMER
 # =====================================================
 
-@router.on_event("startup")
 async def start_waitlist_timer():
 
     global waitlist_task
@@ -780,7 +791,6 @@ async def start_waitlist_timer():
 # STOP AUTOMATIC TIMER
 # =====================================================
 
-@router.on_event("shutdown")
 async def stop_waitlist_timer():
 
     global waitlist_task

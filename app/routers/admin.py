@@ -19,9 +19,28 @@ router = APIRouter(
 # -----------------------------
 
 class UserUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=2)
+    name: str | None = Field(default=None, min_length=2, max_length=100)
     role: str | None = None
     is_active: bool | None = None
+
+
+def removing_last_admin(db, user, new_role=None, new_is_active=None):
+    removing_admin = (
+        user.role == "admin"
+        and user.is_active
+        and (
+            new_role not in (None, "admin")
+            or new_is_active is False
+        )
+    )
+
+    return (
+        removing_admin
+        and db.query(User).filter(
+            User.role == "admin",
+            User.is_active == True
+        ).count() <= 1
+    )
 
 
 # -----------------------------
@@ -139,6 +158,18 @@ def update_user(
                 detail="You cannot remove your own admin role"
             )
 
+    if removing_last_admin(
+        db,
+        user,
+        new_role=data.role,
+        new_is_active=data.is_active
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="At least one active admin account must remain"
+        )
+
+    if data.role is not None:
         user.role = data.role
 
     if data.name is not None:
@@ -192,6 +223,12 @@ def deactivate_user(
         raise HTTPException(
             status_code=400,
             detail="You cannot deactivate your own account"
+        )
+
+    if removing_last_admin(db, user, new_is_active=False):
+        raise HTTPException(
+            status_code=400,
+            detail="At least one active admin account must remain"
         )
 
     user.is_active = False

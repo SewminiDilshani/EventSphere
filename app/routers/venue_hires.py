@@ -1,7 +1,6 @@
 
 import logging
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -12,6 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.database import get_db
 from app.dependencies import require_role
 from app.models import Venue, VenueHire, Event
+from app.timeutils import get_local_now, to_local_naive
 
 
 router = APIRouter(
@@ -22,27 +22,6 @@ router = APIRouter(
 logger = logging.getLogger(__name__)
 
 TURNAROUND_BUFFER = timedelta(hours=1)
-SRI_LANKA_TZ = ZoneInfo("Asia/Colombo")
-
-
-# --------------------------------
-# Time Helper
-# --------------------------------
-
-def to_local_naive(value: datetime) -> datetime:
-    """
-    Convert timezone-aware datetime to Sri Lankan local time.
-    Database stores naive local datetime values.
-    """
-
-    if value.tzinfo is not None:
-        return value.astimezone(SRI_LANKA_TZ).replace(tzinfo=None)
-
-    return value
-
-
-def get_local_now() -> datetime:
-    return datetime.now(SRI_LANKA_TZ).replace(tzinfo=None)
 
 
 # --------------------------------
@@ -51,7 +30,7 @@ def get_local_now() -> datetime:
 
 class VenueHireCreate(BaseModel):
     venue_id: int
-    purpose: str = Field(min_length=3, max_length=500)
+    purpose: str = Field(min_length=3, max_length=255)
     guest_count: int = Field(gt=0)
     start_time: datetime
     end_time: datetime
@@ -271,8 +250,7 @@ def request_venue_hire(
             2
         )
 
-        # Save request as pending.
-        # Admin must confirm or reject it.
+        # Available requests that pass all checks are confirmed immediately.
 
         hire = VenueHire(
             user_id=current_user.id,
@@ -282,7 +260,7 @@ def request_venue_hire(
             start_time=start_time,
             end_time=end_time,
             total_price=total_price,
-            status="pending"
+            status="confirmed"
         )
 
         db.add(hire)
@@ -290,7 +268,7 @@ def request_venue_hire(
         db.refresh(hire)
 
         return {
-            "message": "Venue hire request submitted successfully. Waiting for admin approval.",
+            "message": "Venue hire request confirmed successfully.",
             "hire_id": hire.id,
             "venue": venue.name,
             "purpose": hire.purpose,

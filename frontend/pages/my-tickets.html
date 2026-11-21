@@ -8,8 +8,8 @@
 
     <title>My Digital Tickets - EventSphere</title>
 
-    <link rel="stylesheet" href="/style.css?v=13">
-    <link rel="stylesheet" href="/css/responsive.css?v=13">
+    <link rel="stylesheet" href="/style.css?v=15">
+    <link rel="stylesheet" href="/css/responsive.css?v=15">
 
     <style>
         .ticket-page {
@@ -19,7 +19,7 @@
         }
 
         .ticket-page h1 {
-            color: #172554;
+            color: var(--ink);
             margin-bottom: 25px;
         }
 
@@ -28,13 +28,13 @@
             padding: 25px;
             margin: 20px 0;
             border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-            border-left: 5px solid #2563eb;
+            box-shadow: var(--shadow);
+            border-left: 5px solid var(--brand);
             overflow-wrap: anywhere;
         }
 
         .ticket-card h3 {
-            color: #172554;
+            color: var(--ink);
             margin-bottom: 15px;
         }
 
@@ -52,7 +52,7 @@
         .ticket-code {
             font-weight: bold;
             overflow-wrap: anywhere;
-            background: #f1f5f9;
+            background: var(--brand-pale);
             padding: 12px;
             border-radius: 6px;
         }
@@ -62,21 +62,21 @@
         }
 
         .status-valid {
-            color: #15803d;
+            color: var(--success);
         }
 
         .status-cancelled {
-            color: #b91c1c;
+            color: var(--danger);
         }
 
         .status-used {
-            color: #92400e;
+            color: var(--warning);
         }
 
         .ticket-message {
             padding: 15px;
             margin: 20px 0;
-            background: #f1f5f9;
+            background: var(--brand-pale);
             border-radius: 8px;
         }
 
@@ -316,6 +316,17 @@ async function loadTickets() {
 
                 message.textContent =
                     "This ticket is not valid for event entry.";
+
+                card.appendChild(message);
+
+            } else if (ticket.event_status !== "published") {
+
+                const message = document.createElement("p");
+
+                message.className = "ticket-message";
+
+                message.textContent =
+                    "This event is no longer available for entry.";
 
                 card.appendChild(message);
 

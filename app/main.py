@@ -2,6 +2,8 @@
 import os
 import secrets
 import mimetypes
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
 
 from dotenv import load_dotenv
 
@@ -20,6 +22,11 @@ load_dotenv()
 
 from app.database import engine, Base
 from app import models
+from app.migrations import (
+    ensure_booking_refund_columns,
+    ensure_event_cover_url_column,
+    ensure_ticket_category_column
+)
 
 from app.routers import auth
 from app.routers import (
@@ -43,8 +50,8 @@ from app import agents
 
 ENVIRONMENT = os.getenv(
     "ENVIRONMENT",
-    "development"
-).lower()
+    os.getenv("RAILWAY_ENVIRONMENT", "development")
+).strip().lower()
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
@@ -54,7 +61,7 @@ if not SECRET_KEY:
             "SECRET_KEY must be configured in production"
         )
 
-    SECRET_KEY = "development-only-secret-change-before-deployment"
+    SECRET_KEY = secrets.token_urlsafe(32)
 
 COOKIE_SECURE = ENVIRONMENT == "production"
 
@@ -97,17 +104,9 @@ FRONTEND_DIR = os.path.join(
 # =====================================================
 
 Base.metadata.create_all(bind=engine)
-
-
-# =====================================================
-# FASTAPI APPLICATION
-# =====================================================
-
-app = FastAPI(
-    title="EventSphere",
-    description="Venue Booking and Digital Ticketing System",
-    version="1.0.0"
-)
+ensure_ticket_category_column(engine)
+ensure_event_cover_url_column(engine)
+ensure_booking_refund_columns(engine)
 
 
 # =====================================================
@@ -164,6 +163,27 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                     )
 
         return await call_next(request)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    await agents.start_waitlist_timer()
+    try:
+        yield
+    finally:
+        await agents.stop_waitlist_timer()
+
+
+# =====================================================
+# FASTAPI APPLICATION
+# =====================================================
+
+app = FastAPI(
+    title="EventSphere",
+    description="Venue Booking and Digital Ticketing System",
+    version="1.0.0",
+    lifespan=lifespan
+)
 
 
 # =====================================================

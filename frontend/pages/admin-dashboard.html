@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - EventSphere</title>
-    <link rel="stylesheet" href="/style.css?v=12">
-    <link rel="stylesheet" href="/css/responsive.css?v=12">
+    <link rel="stylesheet" href="/style.css?v=15">
+    <link rel="stylesheet" href="/css/responsive.css?v=15">
 
     <style>
         .admin-container {
@@ -15,7 +15,7 @@
             margin: 40px auto;
         }
 
-        .admin-container h1 { color: #172554; margin-bottom: 20px; }
+        .admin-container h1 { color: var(--ink); margin-bottom: 20px; }
 
         .dashboard-grid {
             display: grid;
@@ -28,15 +28,15 @@
             background: white;
             padding: 22px;
             border-radius: 10px;
-            box-shadow: 0 3px 12px rgba(0,0,0,.07);
+            box-shadow: var(--shadow);
         }
 
-        .stat-card { border-top: 4px solid #2563eb; }
-        .stat-card p { color: #64748b; font-size: 14px; }
-        .stat-card h2 { color: #172554; font-size: 25px; margin-top: 10px; }
+        .stat-card { border-top: 4px solid var(--brand); }
+        .stat-card p { color: var(--muted); font-size: 14px; }
+        .stat-card h2 { color: var(--ink); font-size: 25px; margin-top: 10px; }
 
         .admin-section { margin-bottom: 25px; }
-        .admin-section h2 { color: #172554; margin-bottom: 18px; }
+        .admin-section h2 { color: var(--ink); margin-bottom: 18px; }
 
         .management-grid {
             display: grid;
@@ -45,7 +45,7 @@
         }
 
         .management-card {
-            background: #f5f7fb;
+            background: var(--canvas);
             padding: 18px;
             border-radius: 8px;
         }
@@ -64,11 +64,11 @@
         .form-message { min-height: 1.4em; margin-top: 10px; }
 
         .hire-card, .agent-card {
-            background: #f5f7fb;
+            background: var(--canvas);
             padding: 17px;
             border-radius: 8px;
             margin: 12px 0;
-            border-left: 4px solid #2563eb;
+            border-left: 4px solid var(--brand);
             overflow-wrap: anywhere;
         }
 
@@ -76,23 +76,61 @@
 
         .hire-card button { margin: 8px 8px 0 0; }
         .event-card {
-            background: #f5f7fb;
-            padding: 17px;
-            border-left: 4px solid #2563eb;
+            display: flex;
+            flex-direction: column;
+            background: var(--canvas);
+            border-left: 4px solid var(--brand);
             border-radius: 8px;
-            margin: 12px 0;
+            margin: 0;
             overflow-wrap: anywhere;
         }
 
+        #eventList {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+            gap: 16px;
+        }
+
+        .admin-event-cover {
+            display: block;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            object-fit: cover;
+        }
+
+        .admin-event-placeholder {
+            display: grid;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            place-items: center;
+            background: linear-gradient(135deg, var(--ink), var(--brand) 62%, var(--accent));
+            color: #fff;
+            font-weight: 750;
+        }
+
+        .event-card-body { padding: 16px; }
         .event-card p { margin: 7px 0; }
         .event-card button { margin-top: 8px; }
-        .reject-button, .logout-button { background: #dc2626; }
-        .reject-button:hover, .logout-button:hover { background: #b91c1c; }
+        .event-cover-upload { margin-top: 12px; }
+        .event-cover-upload input { margin-top: 5px; }
 
-        #summaryMessage { color: #64748b; }
+        .cover-preview {
+            display: block;
+            width: 100%;
+            max-height: 220px;
+            margin: 6px 0 12px;
+            border-radius: 10px;
+            object-fit: cover;
+        }
+
+        .cover-hint { color: var(--muted); font-size: .85rem; }
+        .reject-button, .logout-button { background: var(--danger); }
+        .reject-button:hover, .logout-button:hover { background: var(--danger-dark); }
+
+        #summaryMessage { color: var(--muted); }
         .status { font-weight: bold; }
-        .error { color: #b91c1c; }
-        .success { color: #166534; }
+        .error { color: var(--danger); }
+        .success { color: var(--success); }
 
         @media(max-width:600px) {
             .admin-container { width: 94%; }
@@ -177,6 +215,11 @@
                     <label for="eventDescription">Description</label>
                     <textarea id="eventDescription"></textarea>
 
+                    <label for="eventCoverFile">Event cover image</label>
+                    <input id="eventCoverFile" type="file" accept="image/jpeg,image/png,image/webp">
+                    <p class="cover-hint">JPEG, PNG, or WebP · up to 5 MB</p>
+                    <img id="eventCoverPreview" class="cover-preview" alt="Selected event cover preview" hidden>
+
                     <label for="ticketName">Ticket category</label>
                     <input id="ticketName" type="text" maxlength="100" value="General" required>
 
@@ -248,6 +291,7 @@ async function loadDashboard() {
             ["Published Events", data.published_events],
             ["Confirmed Bookings", data.total_bookings],
             ["Total Revenue", "Rs. " + Number(data.total_revenue || 0).toLocaleString()],
+            ["Simulated Refunds", "Rs. " + Number(data.total_refunds || 0).toLocaleString()],
             ["Total Tickets", data.total_tickets],
             ["Checked-in Tickets", data.checked_in_tickets],
             ["Not Checked-in", data.not_checked_in],
@@ -364,11 +408,30 @@ document.getElementById("venueForm").addEventListener("submit", async function(e
     }
 });
 
+document.getElementById("eventCoverFile").addEventListener("change", function() {
+    const preview = document.getElementById("eventCoverPreview");
+    const file = this.files[0];
+    if (preview.dataset.objectUrl) {
+        URL.revokeObjectURL(preview.dataset.objectUrl);
+        delete preview.dataset.objectUrl;
+    }
+    if (!file) {
+        preview.removeAttribute("src");
+        preview.hidden = true;
+        return;
+    }
+
+    preview.dataset.objectUrl = URL.createObjectURL(file);
+    preview.src = preview.dataset.objectUrl;
+    preview.hidden = false;
+});
+
 document.getElementById("eventForm").addEventListener("submit", async function(event) {
     event.preventDefault();
 
     const message = document.getElementById("eventMessage");
     const button = document.getElementById("createEventButton");
+    const coverFile = document.getElementById("eventCoverFile").files[0];
     const start = document.getElementById("eventStart").value;
     const end = document.getElementById("eventEnd").value;
     const venueId = Number(document.getElementById("eventVenue").value);
@@ -392,6 +455,12 @@ document.getElementById("eventForm").addEventListener("submit", async function(e
         return;
     }
 
+    if (coverFile && coverFile.size > 5 * 1024 * 1024) {
+        message.className = "form-message error";
+        message.textContent = "The event cover image must be 5 MB or smaller.";
+        return;
+    }
+
     const data = {
         title: document.getElementById("eventTitle").value.trim(),
         category: document.getElementById("eventCategory").value.trim(),
@@ -409,6 +478,7 @@ document.getElementById("eventForm").addEventListener("submit", async function(e
     button.disabled = true;
     message.className = "form-message";
     message.textContent = "Creating draft event...";
+    let createdEventId = null;
 
     try {
         const response = await fetch(`${API}/events/`, {
@@ -426,20 +496,57 @@ document.getElementById("eventForm").addEventListener("submit", async function(e
             throw new Error(result.detail || "Unable to create event.");
         }
 
+        createdEventId = result.event_id;
+        if (coverFile) {
+            message.textContent = "Event created. Uploading cover image...";
+            await uploadEventCover(createdEventId, coverFile);
+        }
+
         this.reset();
         document.getElementById("ticketName").value = "General";
         document.getElementById("ticketPrice").value = "0";
+        const preview = document.getElementById("eventCoverPreview");
+        if (preview.dataset.objectUrl) {
+            URL.revokeObjectURL(preview.dataset.objectUrl);
+            delete preview.dataset.objectUrl;
+        }
+        preview.removeAttribute("src");
+        preview.hidden = true;
         message.classList.add("success");
-        message.textContent = `Draft event "${result.title}" created. Publish it below to show it on the Events page.`;
+        message.textContent =
+            `Draft event "${result.title}" created${coverFile ? " with its cover image" : ""}. Publish it below to show it on the Events page.`;
         await Promise.all([loadEvents(), loadDashboard()]);
     } catch (error) {
         message.classList.add("error");
-        message.textContent = error.message;
+        message.textContent = createdEventId
+            ? `Draft event #${createdEventId} was created, but the cover upload failed: ${error.message} You can retry it from the event card below.`
+            : error.message;
+        if (createdEventId) {
+            await loadEvents();
+        }
         console.error(error);
     } finally {
         button.disabled = false;
     }
 });
+
+async function uploadEventCover(eventId, file) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${API}/events/${eventId}/cover`, {
+        method: "POST",
+        credentials: "include",
+        headers: csrfHeaders(),
+        body: formData
+    });
+    const result = await response.json();
+
+    if (!response.ok) {
+        throw new Error(result.detail || "Unable to upload the event cover.");
+    }
+    return result;
+}
 
 async function loadEvents() {
     const container = document.getElementById("eventList");
@@ -465,30 +572,101 @@ async function loadEvents() {
             const card = document.createElement("div");
             card.className = "event-card";
 
+            if (item.cover_image_url) {
+                const image = document.createElement("img");
+                image.className = "admin-event-cover";
+                image.src = item.cover_image_url;
+                image.alt = `Cover image for ${item.title}`;
+                image.loading = "lazy";
+                image.onerror = () => {
+                    const fallback = document.createElement("div");
+                    fallback.className = "admin-event-placeholder";
+                    fallback.textContent = "EventSphere";
+                    image.replaceWith(fallback);
+                };
+                card.appendChild(image);
+            } else {
+                const fallback = document.createElement("div");
+                fallback.className = "admin-event-placeholder";
+                fallback.textContent = "EventSphere";
+                card.appendChild(fallback);
+            }
+
+            const body = document.createElement("div");
+            body.className = "event-card-body";
+
             const heading = document.createElement("h4");
             heading.textContent = item.title;
 
             const details = document.createElement("p");
-            details.textContent = `Category: ${item.category} | Venue ID: ${item.venue_id}`;
+            details.textContent =
+                `${item.category} · ${item.venue_name || "Venue"} · ${item.venue_location || "Location to be announced"}`;
 
             const dates = document.createElement("p");
             dates.textContent =
                 `${new Date(item.start_time).toLocaleString()} - ${new Date(item.end_time).toLocaleString()}`;
 
+            const price = document.createElement("p");
+            price.textContent = item.starting_price == null
+                ? "Ticket price: Not set"
+                : `Tickets from Rs. ${Number(item.starting_price).toLocaleString("en-LK")}`;
+
+            const description = document.createElement("p");
+            description.textContent = item.description || "No description provided.";
+
             const status = document.createElement("p");
             status.className = "status";
             status.textContent = `Status: ${item.status}`;
 
-            card.append(heading, details, dates, status);
+            body.append(heading, details, dates, price, description, status);
 
             if (item.status === "draft") {
                 const publishButton = document.createElement("button");
                 publishButton.type = "button";
                 publishButton.textContent = "Publish Event";
                 publishButton.onclick = () => publishEvent(item.id);
-                card.appendChild(publishButton);
+                body.appendChild(publishButton);
             }
 
+            const coverControls = document.createElement("div");
+            coverControls.className = "event-cover-upload";
+            const coverInput = document.createElement("input");
+            coverInput.type = "file";
+            coverInput.accept = "image/jpeg,image/png,image/webp";
+            coverInput.setAttribute("aria-label", `Choose cover image for ${item.title}`);
+            const uploadButton = document.createElement("button");
+            uploadButton.type = "button";
+            uploadButton.textContent = item.cover_image_url ? "Replace cover" : "Upload cover";
+            uploadButton.disabled =
+                item.status === "cancelled" || !coverInput.files.length;
+            coverInput.addEventListener("change", () => {
+                uploadButton.disabled =
+                    item.status === "cancelled" || !coverInput.files.length;
+            });
+            uploadButton.onclick = async () => {
+                const file = coverInput.files[0];
+                if (!file) {
+                    return;
+                }
+                uploadButton.disabled = true;
+                try {
+                    await uploadEventCover(item.id, file);
+                    await loadEvents();
+                } catch (error) {
+                    alert(error.message);
+                    console.error(error);
+                    uploadButton.disabled = false;
+                }
+            };
+            coverControls.append(coverInput, uploadButton);
+            body.appendChild(coverControls);
+
+            const detailsLink = document.createElement("a");
+            detailsLink.href = `./event-details.html?id=${encodeURIComponent(item.id)}`;
+            detailsLink.textContent = "View Details";
+            body.appendChild(detailsLink);
+
+            card.appendChild(body);
             container.appendChild(card);
         });
     } catch (error) {

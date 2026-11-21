@@ -1,11 +1,12 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from pydantic import BaseModel, Field
 
 from app.database import get_db
 from app.models import TicketCategory, Event, Booking, Ticket, Venue
-from app.dependencies import require_role
+from app.dependencies import get_optional_current_user, require_role
 
 
 router = APIRouter(
@@ -39,7 +40,7 @@ class TicketCategoryUpdate(BaseModel):
 def get_event_categories(
     event_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role("attendee", "admin"))
+    current_user=Depends(get_optional_current_user)
 ):
     event = db.query(Event).filter(
         Event.id == event_id
@@ -51,9 +52,49 @@ def get_event_categories(
             detail="Event not found"
         )
 
+    if (
+        event.status != "published"
+        and (current_user is None or current_user.role != "admin")
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Event not found"
+        )
+
     categories = db.query(TicketCategory).filter(
         TicketCategory.event_id == event_id
     ).all()
+
+    booked_counts = db.query(
+        Ticket.ticket_category_id,
+        func.count(Ticket.id)
+    ).join(
+        Booking,
+        Ticket.booking_id == Booking.id
+    ).filter(
+        Booking.event_id == event_id,
+        Booking.status == "confirmed",
+        Ticket.status == "valid"
+    ).group_by(
+        Ticket.ticket_category_id
+    ).all()
+    booked_by_category = {
+        category_id: count
+        for category_id, count in booked_counts
+        if category_id is not None
+    }
+
+    unassigned_legacy_tickets = db.query(
+        func.count(Ticket.id)
+    ).join(
+        Booking,
+        Ticket.booking_id == Booking.id
+    ).filter(
+        Booking.event_id == event_id,
+        Booking.status == "confirmed",
+        Ticket.status == "valid",
+        Ticket.ticket_category_id.is_(None)
+    ).scalar() or 0
 
     return [
         {
@@ -61,7 +102,13 @@ def get_event_categories(
             "event_id": category.event_id,
             "name": category.name,
             "price": category.price,
-            "quantity": category.quantity
+            "quantity": category.quantity,
+            "available_quantity": max(
+                category.quantity
+                - booked_by_category.get(category.id, 0)
+                - unassigned_legacy_tickets,
+                0
+            )
         }
         for category in categories
     ]

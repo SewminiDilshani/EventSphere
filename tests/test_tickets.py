@@ -12,8 +12,10 @@ from app.routers.tickets import my_tickets, scan_ticket
 def make_query(result=None):
     query = MagicMock()
     query.filter.return_value = query
+    query.with_for_update.return_value = query
     query.all.return_value = result if isinstance(result, list) else []
     query.first.return_value = result
+    query.update.return_value = 1
     return query
 
 
@@ -53,7 +55,8 @@ def test_my_tickets_success():
 
     event = SimpleNamespace(
         id=1,
-        title="Vavuniya Music Festival"
+        title="Vavuniya Music Festival",
+        status="published"
     )
 
     db = MagicMock()
@@ -125,7 +128,7 @@ def test_scan_ticket_not_found():
         scan_ticket("WRONG-CODE", monkeypatch_db, make_staff())
 
     assert error.value.status_code == 404
-    assert error.value.detail == "Invalid ticket"
+    assert error.value.detail == "Invalid ticket. Ticket not found."
 
 
 # 5. Cancelled ticket
@@ -151,7 +154,9 @@ def test_scan_cancelled_ticket(monkeypatch):
         scan_ticket("TICKET-ABC123", db, make_staff())
 
     assert error.value.status_code == 400
-    assert error.value.detail == "Cancelled ticket"
+    assert error.value.detail == (
+        "Ticket rejected. This ticket has been cancelled."
+    )
 
 
 # 6. Ticket already used
@@ -160,6 +165,9 @@ def test_scan_ticket_already_used(monkeypatch):
 
     class FakeTicket:
         ticket_code = "TICKET-ABC123"
+        id = 5
+        status = "valid"
+        checked_in = False
 
     monkeypatch.setattr(tickets, "Ticket", FakeTicket)
 
@@ -177,7 +185,9 @@ def test_scan_ticket_already_used(monkeypatch):
         scan_ticket("TICKET-ABC123", db, make_staff())
 
     assert error.value.status_code == 400
-    assert error.value.detail == "Ticket already used"
+    assert error.value.detail == (
+        "Ticket rejected. This ticket has already been used."
+    )
 
 
 # 7. Booking is not valid
@@ -217,7 +227,9 @@ def test_scan_ticket_booking_not_valid(monkeypatch):
         scan_ticket("TICKET-ABC123", db, make_staff())
 
     assert error.value.status_code == 400
-    assert error.value.detail == "Booking is not valid"
+    assert error.value.detail == (
+        "Ticket rejected. Booking is not confirmed."
+    )
 
 
 # 8. Booking not found
@@ -251,7 +263,7 @@ def test_scan_ticket_booking_not_found(monkeypatch):
         scan_ticket("TICKET-ABC123", db, make_staff())
 
     assert error.value.status_code == 400
-    assert error.value.detail == "Booking is not valid"
+    assert error.value.detail == "Ticket rejected. Booking not found."
 
 
 # 9. Event not found during scanning
@@ -266,6 +278,7 @@ def test_scan_ticket_event_not_found(monkeypatch):
 
     class FakeEvent:
         id = 1
+        status = "published"
 
     monkeypatch.setattr(tickets, "Ticket", FakeTicket)
     monkeypatch.setattr(tickets, "Booking", FakeBooking)
@@ -296,7 +309,7 @@ def test_scan_ticket_event_not_found(monkeypatch):
         scan_ticket("TICKET-ABC123", db, make_staff())
 
     assert error.value.status_code == 404
-    assert error.value.detail == "Event not found"
+    assert error.value.detail == "Ticket rejected. Event not found."
 
 
 # 10. Successful ticket check-in
@@ -305,6 +318,9 @@ def test_scan_ticket_success(monkeypatch):
 
     class FakeTicket:
         ticket_code = "TICKET-ABC123"
+        id = 5
+        status = "valid"
+        checked_in = False
 
     class FakeBooking:
         id = 10
@@ -333,14 +349,17 @@ def test_scan_ticket_success(monkeypatch):
 
     event = SimpleNamespace(
         id=1,
-        title="Vavuniya Music Festival"
+        title="Vavuniya Music Festival",
+        status="published"
     )
 
     db = MagicMock()
+    update_query = make_query()
     db.query.side_effect = [
         make_query(ticket),
         make_query(booking),
-        make_query(event)
+        make_query(event),
+        update_query
     ]
 
     result = scan_ticket("TICKET-ABC123", db, make_staff())
@@ -350,8 +369,6 @@ def test_scan_ticket_success(monkeypatch):
     assert result["event"] == "Vavuniya Music Festival"
     assert result["checked_in"] is True
 
-    assert ticket.checked_in is True
-    assert ticket.checked_in_at is not None
-
+    update_query.update.assert_called_once()
     db.commit.assert_called_once()
 

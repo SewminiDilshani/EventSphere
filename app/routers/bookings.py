@@ -11,6 +11,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.database import get_db
 from app.dependencies import require_role
 from app.models import Event, TicketCategory, Booking, Ticket
+from app.refunds import (
+    ATTENDEE_REFUND_POLICY,
+    calculate_attendee_refund
+)
+from app.timeutils import get_local_now, to_local_naive
 
 
 router = APIRouter(
@@ -58,6 +63,10 @@ def generate_ticket_code(db: Session):
             return code
 
 
+def is_sqlite_session(db: Session) -> bool:
+    return db.get_bind().dialect.name == "sqlite"
+
+
 # --------------------------------
 # Create Booking - Attendee Only
 # --------------------------------
@@ -71,8 +80,11 @@ def create_booking(
 
     try:
 
-        # Prevent simultaneous overbooking
-        db.execute(text("BEGIN IMMEDIATE"))
+        # SQLite needs an immediate transaction; other databases lock the
+        # ticket category row below before checking its remaining capacity.
+        sqlite_session = is_sqlite_session(db)
+        if sqlite_session:
+            db.execute(text("BEGIN IMMEDIATE"))
 
         # Check event
 
@@ -94,12 +106,23 @@ def create_booking(
                 detail="Event is not available"
             )
 
+        if to_local_naive(event.start_time) <= get_local_now():
+            raise HTTPException(
+                status_code=400,
+                detail="Event is no longer available for booking"
+            )
+
         # Check ticket category
 
-        category = db.query(TicketCategory).filter(
+        category_query = db.query(TicketCategory).filter(
             TicketCategory.id == data.ticket_category_id,
             TicketCategory.event_id == data.event_id
-        ).first()
+        )
+
+        if not sqlite_session:
+            category_query = category_query.with_for_update()
+
+        category = category_query.first()
 
         if not category:
 
@@ -120,6 +143,20 @@ def create_booking(
             Booking.status == "confirmed",
             Ticket.status == "valid"
         ).scalar() or 0
+
+        unassigned_legacy_tickets = db.query(
+            func.count(Ticket.id)
+        ).join(
+            Booking,
+            Ticket.booking_id == Booking.id
+        ).filter(
+            Booking.event_id == event.id,
+            Booking.status == "confirmed",
+            Ticket.status == "valid",
+            Ticket.ticket_category_id.is_(None)
+        ).scalar() or 0
+
+        booked_count += unassigned_legacy_tickets
 
         available = category.quantity - booked_count
 
@@ -191,6 +228,10 @@ def create_booking(
             "total_amount": total,
 
             "payment_reference": booking.payment_reference,
+
+            "refund_amount": booking.refund_amount,
+
+            "refund_reference": booking.refund_reference,
 
             "status": booking.status,
 
@@ -279,12 +320,19 @@ def cancel_booking(
 
     try:
 
-        db.execute(text("BEGIN IMMEDIATE"))
+        sqlite_session = is_sqlite_session(db)
+        if sqlite_session:
+            db.execute(text("BEGIN IMMEDIATE"))
 
-        booking = db.query(Booking).filter(
+        booking_query = db.query(Booking).filter(
             Booking.id == booking_id,
             Booking.user_id == current_user.id
-        ).first()
+        )
+
+        if not sqlite_session:
+            booking_query = booking_query.with_for_update()
+
+        booking = booking_query.first()
 
         if not booking:
 
@@ -316,9 +364,27 @@ def cancel_booking(
                 detail="Booking cannot be cancelled after check-in"
             )
 
-        # Cancel booking
+        event = db.query(Event).filter(
+            Event.id == booking.event_id
+        ).first()
+
+        if not event:
+            raise HTTPException(
+                status_code=404,
+                detail="Event not found"
+            )
+
+        refund_amount = calculate_attendee_refund(
+            booking.total_amount,
+            event.start_time
+        )
 
         booking.status = "cancelled"
+        booking.refund_amount = refund_amount
+        booking.refund_reference = (
+            "SIM-REF-" + secrets.token_hex(12)
+            if refund_amount > 0 else None
+        )
 
         # Cancel all tickets
 
@@ -336,10 +402,10 @@ def cancel_booking(
 
             "status": "cancelled",
 
-            "refund": (
-                "Simulated refund only. "
-                "No real payment was processed."
-            )
+            "refund_amount": refund_amount,
+            "refund_reference": booking.refund_reference,
+            "refund_policy": ATTENDEE_REFUND_POLICY,
+            "payment_note": "Simulated refund only; no real payment was processed."
 
         }
 
@@ -405,6 +471,10 @@ def all_bookings(
             "total_amount": booking.total_amount,
 
             "payment_reference": booking.payment_reference,
+
+            "refund_amount": booking.refund_amount,
+
+            "refund_reference": booking.refund_reference,
 
             "status": booking.status,
 

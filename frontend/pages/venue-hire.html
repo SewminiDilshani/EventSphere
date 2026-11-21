@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Venue Hire - EventSphere</title>
-    <link rel="stylesheet" href="/style.css?v=12">
-    <link rel="stylesheet" href="/css/responsive.css?v=12">
+    <link rel="stylesheet" href="/style.css?v=15">
+    <link rel="stylesheet" href="/css/responsive.css?v=15">
 
     <style>
         .venue-page { width: 90%; max-width: 850px; margin: 40px auto; }
@@ -15,18 +15,18 @@
             background: white;
             padding: 28px;
             border-radius: 12px;
-            box-shadow: 0 4px 18px rgba(0,0,0,.08);
+            box-shadow: var(--shadow);
             margin-bottom: 25px;
         }
 
-        .venue-card h1, .venue-card h2 { color: #172554; margin-bottom: 18px; }
+        .venue-card h1, .venue-card h2 { color: var(--ink); margin-bottom: 18px; }
         .venue-card form { max-width: none; margin: 0; padding: 0; box-shadow: none; }
         .venue-card button { width: 100%; margin-top: 12px; }
         #message { margin-top: 15px; text-align: center; font-weight: bold; }
 
         .request-item {
-            background: #f5f7fb;
-            border-left: 4px solid #2563eb;
+            background: var(--canvas);
+            border-left: 4px solid var(--brand);
             padding: 16px;
             margin: 12px 0;
             border-radius: 6px;
@@ -34,6 +34,22 @@
         }
 
         .request-item p { margin: 7px 0; }
+
+        .alternative-list {
+            display: grid;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .alternative-card {
+            padding: 16px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: var(--brand-pale);
+        }
+
+        .alternative-card h3 { margin: 0 0 6px; }
+        .alternative-card p { margin: 5px 0; }
 
         @media(max-width:600px) {
             .venue-page { width: 94%; margin: 25px auto; }
@@ -73,7 +89,7 @@
             <input type="datetime-local" id="end_time" required>
 
             <label for="purpose">Purpose of Hire</label>
-            <input type="text" id="purpose" maxlength="250"
+            <input type="text" id="purpose" maxlength="255"
                    placeholder="Example: Birthday party" required>
 
             <label for="guest_count">Number of Guests</label>
@@ -82,6 +98,7 @@
 
             <button type="submit" id="submitButton">Submit Venue Request</button>
             <p id="message" role="status" aria-live="polite"></p>
+            <div id="alternatives" class="alternative-list" aria-live="polite"></div>
         </form>
     </section>
 
@@ -141,9 +158,11 @@ document.getElementById("hireForm").addEventListener("submit", async function(ev
 
     const message = document.getElementById("message");
     const button = document.getElementById("submitButton");
+    const alternatives = document.getElementById("alternatives");
+    alternatives.replaceChildren();
 
     if (!sessionStorage.getItem("csrf_token")) {
-        message.style.color = "red";
+        message.style.color = "var(--danger)";
         message.textContent = "Please login before requesting a venue.";
         return;
     }
@@ -153,13 +172,13 @@ document.getElementById("hireForm").addEventListener("submit", async function(ev
     const guestCount = Number(document.getElementById("guest_count").value);
 
     if (new Date(end) <= new Date(start)) {
-        message.style.color = "red";
+        message.style.color = "var(--danger)";
         message.textContent = "End time must be after start time.";
         return;
     }
 
     if (!Number.isInteger(guestCount) || guestCount < 1) {
-        message.style.color = "red";
+        message.style.color = "var(--danger)";
         message.textContent = "Please enter a valid guest count.";
         return;
     }
@@ -173,7 +192,7 @@ document.getElementById("hireForm").addEventListener("submit", async function(ev
     };
 
     button.disabled = true;
-    message.style.color = "#333";
+    message.style.color = "var(--ink-soft)";
     message.textContent = "Submitting request...";
 
     try {
@@ -198,25 +217,78 @@ document.getElementById("hireForm").addEventListener("submit", async function(ev
         }
 
         if (result.status === "unavailable") {
-            message.style.color = "red";
+            message.style.color = "var(--danger)";
             message.textContent = result.message || "Venue is unavailable. Please check alternatives.";
+            renderAlternatives(result.alternatives || []);
             return;
         }
 
-        message.style.color = "green";
+        message.style.color = "var(--success)";
         message.textContent = result.message || "Venue request submitted successfully.";
+        alternatives.replaceChildren();
 
         document.getElementById("hireForm").reset();
         await loadRequests();
 
     } catch (error) {
-        message.style.color = "red";
+        message.style.color = "var(--danger)";
         message.textContent = error.message;
         console.error(error);
     } finally {
         button.disabled = false;
     }
 });
+
+function renderAlternatives(venues) {
+    const container = document.getElementById("alternatives");
+    container.replaceChildren();
+
+    if (!Array.isArray(venues) || venues.length === 0) {
+        const empty = document.createElement("p");
+        empty.textContent = "No alternative venues are available for this time.";
+        container.appendChild(empty);
+        return;
+    }
+
+    const heading = document.createElement("h2");
+    heading.textContent = "Available alternative venues";
+    container.appendChild(heading);
+
+    venues.forEach(venue => {
+        const card = document.createElement("article");
+        card.className = "alternative-card";
+
+        const name = document.createElement("h3");
+        name.textContent = venue.venue_name;
+
+        const location = document.createElement("p");
+        location.textContent = venue.location;
+
+        const capacity = document.createElement("p");
+        capacity.textContent = `Capacity: ${venue.capacity}`;
+
+        const price = document.createElement("p");
+        price.textContent =
+            `Estimated price: Rs. ${Number(venue.estimated_price).toLocaleString("en-LK")}`;
+
+        const choose = document.createElement("button");
+        choose.type = "button";
+        choose.textContent = "Choose this venue";
+        choose.addEventListener("click", () => {
+            document.getElementById("venue_id").value = String(venue.venue_id);
+            document.getElementById("message").textContent =
+                `${venue.venue_name} selected. Submit the request again to confirm availability.`;
+            document.getElementById("message").style.color = "var(--brand-dark)";
+            document.getElementById("hireForm").scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            });
+        });
+
+        card.append(name, location, capacity, price, choose);
+        container.appendChild(card);
+    });
+}
 
 async function loadRequests() {
     const container = document.getElementById("myRequests");

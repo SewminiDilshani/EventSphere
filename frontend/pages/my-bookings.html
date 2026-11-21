@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Bookings - EventSphere</title>
-    <link rel="stylesheet" href="/style.css?v=12">
-    <link rel="stylesheet" href="/css/responsive.css?v=12">
+    <link rel="stylesheet" href="/style.css?v=15">
+    <link rel="stylesheet" href="/css/responsive.css?v=15">
 
     <style>
         .booking-page { width: 90%; max-width: 900px; margin: 40px auto; }
@@ -15,14 +15,14 @@
             padding: 25px;
             margin: 20px 0;
             border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,.08);
-            border-left: 5px solid #2563eb;
+            box-shadow: var(--shadow);
+            border-left: 5px solid var(--brand);
             overflow-wrap: anywhere;
         }
-        .booking-card h3 { color: #172554; margin-bottom: 12px; }
+        .booking-card h3 { color: var(--ink); margin-bottom: 12px; }
         .booking-card p { margin: 8px 0; }
-        .cancel-button { background: #dc2626; margin-top: 12px; }
-        .cancel-button:hover { background: #b91c1c; }
+        .cancel-button { background: var(--danger); margin-top: 12px; }
+        .cancel-button:hover { background: var(--danger-dark); }
     </style>
 </head>
 
@@ -87,6 +87,13 @@ async function loadBookings() {
                 `Payment Reference: ${booking.payment_reference || "N/A"}`;
 
             card.append(heading, info, payment);
+
+            if (booking.status === "cancelled") {
+                const refund = document.createElement("p");
+                refund.textContent =
+                    `Simulated refund: Rs. ${Number(booking.refund_amount || 0).toLocaleString()} | Reference: ${booking.refund_reference || "N/A"}`;
+                card.appendChild(refund);
+            }
 
             if (booking.status === "confirmed") {
                 const button = document.createElement("button");

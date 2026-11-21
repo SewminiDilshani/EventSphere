@@ -9,7 +9,8 @@ from sqlalchemy import (
     ForeignKey,
     DateTime,
     Float,
-    Text
+    Text,
+    LargeBinary
 )
 from sqlalchemy.orm import relationship
 
@@ -101,6 +102,8 @@ class Event(Base):
 
     description = Column(Text)
 
+    cover_image_url = Column(String(255))
+
     venue_id = Column(
         Integer,
         ForeignKey("venues.id"),
@@ -126,6 +129,20 @@ class Event(Base):
         "TicketCategory",
         back_populates="event"
     )
+
+
+class EventCoverImage(Base):
+    __tablename__ = "event_cover_images"
+
+    event_id = Column(
+        Integer,
+        ForeignKey("events.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+
+    image_data = Column(LargeBinary, nullable=False)
+
+    content_type = Column(String(50), nullable=False)
 
 
 # -----------------------------
@@ -181,6 +198,15 @@ class Booking(Base):
     total_amount = Column(Float, nullable=False)
 
     payment_reference = Column(String(150))
+
+    refund_amount = Column(
+        Float,
+        default=0,
+        server_default="0",
+        nullable=False
+    )
+
+    refund_reference = Column(String(150))
 
     status = Column(
         String(30),

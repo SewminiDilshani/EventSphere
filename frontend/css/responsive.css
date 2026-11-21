@@ -1,86 +1,438 @@
-
-* {
-    box-sizing: border-box;
-}
-
-body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-}
-
-img {
-    max-width: 100%;
-}
-
+/* Keep shared styles consistent with the older page-level style blocks. */
 .auth-container {
-    width: 90%;
-    max-width: 650px;
-    margin: 45px auto;
-    padding: 30px;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 3px 15px rgba(0,0,0,0.08);
+    width: min(100% - 40px, 480px) !important;
+    max-width: 480px !important;
+    margin: 54px auto !important;
+    padding: 36px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 20px !important;
+    background: var(--surface) !important;
+    box-shadow: var(--shadow) !important;
 }
 
 .auth-container h1 {
-    color: #172554;
-    margin-bottom: 25px;
+    color: var(--ink) !important;
 }
 
-.auth-container form {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+.auth-container form,
+.venue-card form,
+.staff-card form,
+.management-card form {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
 }
 
-.auth-container input,
-.auth-container select {
-    padding: 12px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    width: 100%;
+.events-section {
+    width: min(100% - 48px, 1160px) !important;
+    max-width: 1160px !important;
+    margin: 46px auto !important;
+    padding: 0 !important;
 }
 
-.auth-container button {
-    padding: 12px 20px;
-    background: #2563eb;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
+.events-heading h1,
+.details-card h1,
+.booking-page h1,
+.ticket-page h1,
+.admin-container h1,
+.admin-section h2,
+.venue-card h1,
+.venue-card h2,
+.staff-card h1,
+.section-title {
+    color: var(--ink) !important;
+}
+
+.events-heading {
+    margin-bottom: 36px !important;
+}
+
+.events-heading h1 {
+    font-size: clamp(2rem, 4vw, 2.6rem) !important;
+}
+
+.events-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)) !important;
+    gap: 22px !important;
+}
+
+.events-grid .event-card {
+    padding: 25px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: var(--radius) !important;
+    background: var(--surface) !important;
+    box-shadow: 0 6px 22px rgba(50, 37, 59, 0.06) !important;
+}
+
+.events-grid .event-card h3,
+.booking-card h3,
+.ticket-card h3 {
+    color: var(--ink) !important;
+}
+
+.event-button {
+    padding: 11px 19px !important;
+    background: var(--brand) !important;
+    color: #fff !important;
+    border-radius: 10px !important;
+}
+
+.event-button:hover {
+    background: var(--brand-dark) !important;
+    color: #fff !important;
+}
+
+.details-section {
+    width: min(100% - 48px, 850px) !important;
+    max-width: 850px !important;
+    margin: 46px auto !important;
 }
 
 .details-card {
-    background: white;
-    padding: 22px;
-    margin: 18px 0;
-    border-radius: 10px;
-    box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+    padding: clamp(24px, 5vw, 44px) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: var(--radius) !important;
+    background: var(--surface) !important;
+    box-shadow: 0 6px 22px rgba(50, 37, 59, 0.06) !important;
+}
+
+.booking-box {
+    padding: clamp(20px, 4vw, 30px) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 14px !important;
+    background: var(--brand-pale) !important;
+}
+
+.booking-box select,
+.booking-box input,
+.staff-card input,
+.staff-card select,
+.management-card input,
+.management-card select,
+.management-card textarea {
+    border-color: var(--line) !important;
+    border-radius: 9px !important;
+}
+
+.book-button {
+    background: var(--brand) !important;
+    border-radius: 10px !important;
+}
+
+.book-button:hover {
+    background: var(--brand-dark) !important;
+}
+
+.booking-page,
+.ticket-page,
+.venue-page,
+.admin-container,
+.staff-container {
+    width: min(100% - 48px, 1160px) !important;
+    margin: 46px auto !important;
+}
+
+.booking-page {
+    max-width: 900px !important;
+}
+
+.ticket-page {
+    max-width: 900px !important;
+}
+
+.venue-page {
+    max-width: 850px !important;
+}
+
+.staff-container {
+    max-width: 700px !important;
+}
+
+.booking-card,
+.ticket-card,
+.venue-card,
+.staff-card,
+.stat-card,
+.admin-section {
+    border-color: var(--line) !important;
+    border-radius: var(--radius) !important;
+    background: var(--surface) !important;
+}
+
+.booking-card,
+.ticket-card {
+    padding: 25px !important;
+    border-left: 4px solid var(--brand) !important;
+    box-shadow: 0 6px 22px rgba(50, 37, 59, 0.06) !important;
+}
+
+.venue-card,
+.staff-card {
+    padding: clamp(22px, 4vw, 34px) !important;
+    box-shadow: 0 6px 22px rgba(50, 37, 59, 0.06) !important;
+}
+
+.admin-container {
+    max-width: 1240px !important;
+}
+
+.admin-section {
+    padding: clamp(20px, 3vw, 30px) !important;
+    box-shadow: 0 6px 22px rgba(50, 37, 59, 0.06) !important;
+}
+
+.management-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)) !important;
+    gap: 20px !important;
+}
+
+.management-card {
+    padding: 22px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 13px !important;
+    background: var(--canvas) !important;
+}
+
+.hire-card,
+.agent-card,
+.admin-container .event-card,
+.request-item {
+    border-color: var(--line) !important;
+    border-left: 4px solid var(--brand) !important;
+    border-radius: 11px !important;
+    background: var(--canvas) !important;
+}
+
+.hire-card button,
+.admin-container .event-card button,
+.agent-card button {
+    width: auto !important;
+    margin: 8px 8px 0 0 !important;
+}
+
+.logout-button {
+    background: var(--danger) !important;
+}
+
+.logout-button:hover,
+.reject-button:hover,
+.cancel-button:hover {
+    background: var(--danger-dark) !important;
+}
+
+.secondary-button {
+    background: var(--ink-soft) !important;
+}
+
+.book-button:disabled {
+    background: var(--disabled) !important;
+}
+
+.staff-description {
+    color: var(--muted) !important;
+}
+
+.staff-info {
+    background: var(--brand-pale) !important;
+    color: var(--brand-dark) !important;
+}
+
+@media (max-width: 820px) {
+    header {
+        padding: 14px 24px;
+        gap: 12px;
+    }
+
+    nav {
+        gap: 3px;
+    }
+
+    nav a {
+        padding: 8px 9px;
+        font-size: 0.84rem;
+    }
 }
 
 @media (max-width: 600px) {
-    header {
-        padding: 15px;
+    html {
+        scroll-padding-top: 20px;
     }
 
-    header nav {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
+    header {
+        min-height: 0;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 16px 20px 12px;
+    }
+
+    .logo {
+        font-size: 1.25rem;
+    }
+
+    nav {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: nowrap;
+        gap: 3px;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+    }
+
+    nav a {
+        flex: 0 0 auto;
+        padding: 8px 10px;
+        font-size: 0.82rem;
+        white-space: nowrap;
+    }
+
+    .hero {
+        min-height: 400px;
+        padding: 58px 25px;
+    }
+
+    .hero::after {
+        right: -270px;
+        bottom: -290px;
+    }
+
+    .hero-content h1 {
+        font-size: clamp(2.4rem, 11vw, 3.25rem);
+    }
+
+    .features {
+        padding: 48px 22px 56px;
+    }
+
+    .features h2 {
+        margin-bottom: 24px;
+    }
+
+    .feature-container {
+        gap: 14px;
+    }
+
+    .feature-card {
+        min-height: 0;
+        padding: 22px;
+    }
+
+    .events-section,
+    .booking-page,
+    .ticket-page,
+    .venue-page,
+    .admin-container,
+    .staff-container,
+    .details-section {
+        width: calc(100% - 32px) !important;
+        margin: 28px auto !important;
+    }
+
+    .events-section {
+        padding: 0 !important;
+    }
+
+    .events-heading {
+        margin-bottom: 24px !important;
+    }
+
+    .events-heading h1 {
+        font-size: 2rem !important;
+    }
+
+    .events-grid {
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 15px !important;
+    }
+
+    .events-grid .event-card {
+        padding: 21px !important;
     }
 
     .auth-container {
-        width: 94%;
-        margin: 20px auto;
-        padding: 18px;
+        width: calc(100% - 32px) !important;
+        max-width: 480px !important;
+        margin: 30px auto !important;
+        padding: 24px !important;
     }
 
-    .details-section {
-        margin: 15px auto;
-        padding: 12px;
+    .auth-container h1 {
+        font-size: 1.8rem;
     }
 
     .details-card {
-        padding: 16px;
+        padding: 22px !important;
+    }
+
+    .booking-card,
+    .ticket-card {
+        padding: 20px !important;
+    }
+
+    .venue-card,
+    .staff-card {
+        padding: 22px !important;
+    }
+
+    .admin-section,
+    .stat-card {
+        padding: 20px !important;
+    }
+
+    .management-grid {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .management-card {
+        padding: 18px !important;
+    }
+
+    .camera-buttons {
+        flex-direction: column;
+    }
+
+    .camera-buttons button {
+        width: 100%;
+    }
+
+    table {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+
+    th,
+    td {
+        padding: 11px 12px;
+    }
+}
+
+@media (max-width: 380px) {
+    header {
+        padding-inline: 14px;
+    }
+
+    .hero {
+        padding-inline: 20px;
+    }
+
+    .hero-content h1 {
+        font-size: 2.25rem;
+    }
+
+    .auth-container {
+        padding: 20px !important;
+    }
+
+    button,
+    .main-button,
+    .event-button,
+    .book-button {
+        padding-inline: 14px;
     }
 }

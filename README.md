@@ -34,6 +34,8 @@ The platform uses simulated payments only. No real bank, card, or payment gatewa
 
 - Create and manage events.
 - Support draft and published events.
+- Upload persistent event cover images and show event cards with venue, date,
+  ticket pricing, and public event details.
 - Manage event details and ticket categories.
 - Manage ticket prices and quantities.
 - Check venue availability and scheduling conflicts.
@@ -46,7 +48,10 @@ The platform uses simulated payments only. No real bank, card, or payment gatewa
 - Simulated payment processing.
 - Store payment references.
 - View booking history.
-- Cancel bookings according to the implemented cancellation policy.
+- Cancel bookings for a simulated refund: 100% at least 24 hours before the
+  event, 50% within 24 hours before it starts, and 0% after it starts.
+- Receive a full simulated refund when an organiser cancels the event.
+- Booking requests are rejected once the event has started.
 
 ### Digital Tickets and QR Check-in
 
@@ -63,7 +68,9 @@ The platform uses simulated payments only. No real bank, card, or payment gatewa
 - Enter purpose and guest count.
 - Calculate venue hire prices.
 - Check venue availability.
-- Allow administrators to manage pending requests.
+- Automatically confirm requests for available venues and return alternative
+  venues when the requested time is unavailable.
+- Allow administrators to review existing pending requests.
 
 ### Dashboards
 
@@ -96,6 +103,26 @@ Supported performatives specified in the assignment:
 - FAILURE
 
 Refer to the implemented agent modules and message logs for the actual communication and decision rules.
+
+The current implementation has assignment gaps that should be considered before
+claiming full multi-agent compliance:
+
+- VenueAgent checks the venue exists and is open for hire. Event overlap,
+  turnaround-buffer, capacity, and hire-price decisions are currently enforced
+  by API routes rather than made by the agent.
+- BookingAgent checks that an existing booking is confirmed. Booking quantity,
+  event timing, ticket availability, and refund decisions are enforced by the
+  booking route.
+- TicketAgent validates ticket, booking, and event status. The API scan route
+  enforces the requested event and atomic single check-in.
+- WaitlistAgent stores waiting entries and expires them after 15 minutes. It
+  does not yet offer released tickets or process attendee claims.
+- NotificationAgent currently stores simulated notifications in process
+  memory; its notifications do not survive an application restart.
+
+Agent messages are persisted in the database, but these remaining decision and
+state-ownership gaps mean the implementation does not yet satisfy every
+agent-based requirement in the assignment.
 
 ## 4. Technologies Used
 
@@ -205,17 +232,19 @@ pip install -r requirements.txt
 
 ### Step 4: Configure Environment Variables
 
-Create a `.env` file in the project root directory.
+Copy `.env.example` to `.env` in the project root directory.
 
 Example:
 
 ```env
 ENVIRONMENT=development
-SECRET_KEY=your_secret_key
+SECRET_KEY=generate-a-unique-random-secret
 DATABASE_URL=sqlite:///./eventsphere.db
 ```
 
-Use a strong secret key. Never commit the `.env` file to GitHub.
+Use a unique secret key outside local development. Never commit the `.env` file
+or production credentials to GitHub. Development generates a temporary random
+session key if `SECRET_KEY` is omitted.
 
 ### Step 5: Run the Application
 
@@ -247,15 +276,15 @@ Add any additional environment variables required by the actual application.
 
 ## 8. Demo Accounts
 
-Create the following accounts through the registration page and assign the required roles.
+Admin, staff, and attendee demo accounts can be created by the optional local
+demo account script. Attendees can also register through the registration
+page. Do not use shared or published passwords.
 
-| Role     | Email              | Password              |
-| -------- | ------------------ | --------------------- |
-| Admin    | ADD_ADMIN_EMAIL    | ADD_ADMIN_PASSWORD    |
-| Staff    | ADD_STAFF_EMAIL    | ADD_STAFF_PASSWORD    |
-| Attendee | ADD_ATTENDEE_EMAIL | ADD_ATTENDEE_PASSWORD |
-
-**Important:** Replace these placeholders with the actual demo account credentials before submission. Do not publish personal passwords.
+To run `app/create_demo_users.py`, set `DEMO_ADMIN_EMAIL`,
+`DEMO_ADMIN_PASSWORD`, `DEMO_STAFF_EMAIL`, `DEMO_STAFF_PASSWORD`,
+`DEMO_ATTENDEE_EMAIL`, and `DEMO_ATTENDEE_PASSWORD` to dedicated values of your
+choice in your local environment. The script does not contain default
+passwords and will not overwrite existing accounts.
 
 ## 9. Running Tests
 
@@ -294,7 +323,22 @@ The application is intended to be deployed using Railway.
 
 https://eventsphere-production-6e283e01.up.railway.app/index.html
 
-The production deployment should use HTTPS, configured environment variables, and persistent database storage.
+The production deployment must set `ENVIRONMENT=production`,
+`SECRET_KEY` to a unique random value, and `DATABASE_URL` to a persistent
+PostgreSQL database. The application rejects a production configuration that
+omits the database URL or session secret. PostgreSQL bookings and cancellations
+use row locks; SQLite uses its database-specific immediate transaction.
+
+The frontend expects the API on the same origin and is served by the FastAPI
+application. `FRONTEND_ORIGINS` controls CORS but does not configure a separate
+API base URL; hosting the frontend separately is not supported without
+additional frontend API and cross-site session configuration.
+The app applies its additive ticket-category schema migration at startup;
+`python update_database.py` can also be run against the configured database.
+Event cover uploads are limited to JPEG, PNG, or WebP files up to 5 MB. Image
+content is stored in the configured database, while the event record stores a
+stable same-origin image URL; this avoids relying on ephemeral deployment
+filesystem storage. The event cover URL migration is applied at startup.
 
 ## 11. Security
 

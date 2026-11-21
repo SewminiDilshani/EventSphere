@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Venue, User, Event, VenueHire
 from app.dependencies import require_role
+from app.timeutils import to_local_naive
 
 router = APIRouter(
     prefix="/venues",
@@ -22,21 +23,21 @@ TURNAROUND_BUFFER = timedelta(hours=1)
 # -----------------------------
 
 class VenueCreate(BaseModel):
-    name: str
-    location: str
+    name: str = Field(min_length=1, max_length=150)
+    location: str = Field(min_length=1, max_length=200)
     capacity: int = Field(gt=0)
     description: str = ""
-    image: str = ""
+    image: str = Field(default="", max_length=255)
     hourly_rate: float = Field(ge=0)
     is_open_for_hire: bool = False
 
 
 class VenueUpdate(BaseModel):
-    name: str | None = None
-    location: str | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=150)
+    location: str | None = Field(default=None, min_length=1, max_length=200)
     capacity: int | None = Field(default=None, gt=0)
     description: str | None = None
-    image: str | None = None
+    image: str | None = Field(default=None, max_length=255)
     hourly_rate: float | None = Field(default=None, ge=0)
     is_open_for_hire: bool | None = None
 
@@ -147,6 +148,9 @@ def venue_availability(
     end_time: datetime,
     db: Session = Depends(get_db)
 ):
+    start_time = to_local_naive(start_time)
+    end_time = to_local_naive(end_time)
+
     venue = db.query(Venue).filter(
         Venue.id == venue_id
     ).first()
@@ -248,6 +252,18 @@ def update_venue(
                 status_code=400,
                 detail="Capacity is lower than an existing event's ticket allocation"
             )
+
+    oversized_hire = db.query(VenueHire).filter(
+        VenueHire.venue_id == venue_id,
+        VenueHire.status.in_(["pending", "approved", "confirmed"]),
+        VenueHire.guest_count > new_capacity
+    ).first()
+
+    if oversized_hire:
+        raise HTTPException(
+            status_code=400,
+            detail="Capacity is lower than an existing venue hire's guest count"
+        )
 
     for key, value in update_data.items():
         setattr(venue, key, value)
