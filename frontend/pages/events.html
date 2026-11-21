@@ -155,9 +155,59 @@
     <p>&copy; 2026 EventSphere. All Rights Reserved.</p>
 </footer>
 
+<script src="/auth.js"></script>
 <script>
 const API_URL = window.location.origin;
 const EVENT_TIME_ZONE = "Asia/Colombo";
+
+async function loadRoleDashboardLink() {
+    const navigation = document.querySelector("header nav");
+
+    try {
+        const response = await fetch(`${API_URL}/auth/me`, {
+            credentials: "include"
+        });
+        if (response.status === 401) {
+            return;
+        }
+
+        const user = await response.json();
+        if (!response.ok) {
+            throw new Error(user.detail || "Unable to load account details.");
+        }
+
+        const dashboard = {
+            admin: {
+                href: "./admin-dashboard.html",
+                label: "Admin Dashboard"
+            },
+            staff: {
+                href: "./staff-dashboard.html",
+                label: "Staff Dashboard"
+            }
+        }[user.role];
+
+        if (!dashboard) {
+            return;
+        }
+
+        navigation.querySelectorAll('a[href="./login.html"], a[href="./register.html"]')
+            .forEach(link => link.remove());
+
+        const dashboardLink = document.createElement("a");
+        dashboardLink.href = dashboard.href;
+        dashboardLink.textContent = dashboard.label;
+
+        const logoutButton = document.createElement("button");
+        logoutButton.type = "button";
+        logoutButton.textContent = "Logout";
+        logoutButton.addEventListener("click", logout);
+
+        navigation.append(dashboardLink, logoutButton);
+    } catch (error) {
+        console.error("Account navigation error:", error);
+    }
+}
 
 function parseEventTime(value) {
     return new Date(/[zZ]|[+-]\d{2}:\d{2}$/.test(value) ? value : `${value}+05:30`);
@@ -293,6 +343,7 @@ async function loadEvents() {
     }
 }
 
+loadRoleDashboardLink();
 loadEvents();
 </script>
 

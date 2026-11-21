@@ -153,15 +153,12 @@ document.getElementById("loginForm").addEventListener("submit", async function(e
         message.style.color = "var(--success)";
         message.textContent = "Login successful!";
 
-        setTimeout(() => {
-            if (result.role === "admin") {
-                window.location.href = "./admin-dashboard.html";
-            } else if (result.role === "staff") {
-                window.location.href = "./staff-dashboard.html";
-            } else {
-                window.location.href = "./events.html";
-            }
-        }, 400);
+        const destinations = {
+            admin: "/pages/admin-dashboard.html",
+            staff: "/pages/staff-dashboard.html",
+            attendee: "/pages/events.html"
+        };
+        window.location.replace(destinations[result.role]);
 
     } catch (error) {
         message.style.color = "var(--danger)";
