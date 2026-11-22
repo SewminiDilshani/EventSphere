@@ -38,10 +38,11 @@ def get_demo_users():
 
 
 def create_demo_users():
+    users = get_demo_users()
     db = SessionLocal()
 
     try:
-        for item in get_demo_users():
+        for item in users:
             user = db.query(User).filter(
                 User.email == item["email"]
             ).first()
@@ -71,6 +72,18 @@ def create_demo_users():
 
     finally:
         db.close()
+
+
+def create_demo_users_if_configured():
+    roles = ("ADMIN", "STAFF", "ATTENDEE")
+    variable_names = (
+        f"DEMO_{role}_{setting}"
+        for role in roles
+        for setting in ("EMAIL", "PASSWORD")
+    )
+
+    if any(os.getenv(name) is not None for name in variable_names):
+        create_demo_users()
 
 
 if __name__ == "__main__":

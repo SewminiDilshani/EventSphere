@@ -280,15 +280,17 @@ Add any additional environment variables required by the actual application.
 
 ## 8. Demo Accounts
 
-Admin, staff, and attendee demo accounts can be created by the optional local
-demo account script. Attendees can also register through the registration
-page. Do not use shared or published passwords.
+Admin, staff, and attendee demo accounts can be created from environment
+variables. Attendees can also register through the registration page. Do not
+use shared or published passwords.
 
-To run `app/create_demo_users.py`, set `DEMO_ADMIN_EMAIL`,
-`DEMO_ADMIN_PASSWORD`, `DEMO_STAFF_EMAIL`, `DEMO_STAFF_PASSWORD`,
-`DEMO_ATTENDEE_EMAIL`, and `DEMO_ATTENDEE_PASSWORD` to dedicated values of your
-choice in your local environment. The script does not contain default
-passwords and will not overwrite existing accounts.
+Set `DEMO_ADMIN_EMAIL`, `DEMO_ADMIN_PASSWORD`, `DEMO_STAFF_EMAIL`,
+`DEMO_STAFF_PASSWORD`, `DEMO_ATTENDEE_EMAIL`, and `DEMO_ATTENDEE_PASSWORD` in
+the application environment to dedicated values of your choice. When any demo
+account variable is configured, application startup validates all six values
+and creates any missing demo accounts. Existing accounts are left unchanged,
+including their passwords. The same setup can be run manually with
+`python -m app.create_demo_users` from the project root.
 
 ## 9. Running Tests
 

@@ -22,6 +22,7 @@ load_dotenv()
 
 from app.database import engine, Base
 from app import models
+from app.create_demo_users import create_demo_users_if_configured
 from app.migrations import (
     ensure_booking_refund_columns,
     ensure_event_cover_url_column,
@@ -167,6 +168,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    create_demo_users_if_configured()
     await agents.start_waitlist_timer()
     try:
         yield
